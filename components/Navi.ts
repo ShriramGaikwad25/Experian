@@ -54,7 +54,8 @@ export const navLinks: NavItem[] = [
     href: "/assurance-events/datalake/entitlements",
     icon: Plug,
     subItems: [
-      { name: "Datalake Entitlements", href: "/assurance-events/datalake/entitlements", icon: KeyRound },
+      { name: "Data Explorer", href: "/assurance-events/datalake/entitlements", icon: KeyRound },
+      { name: "Scheduler", href: "/assurance-events/scheduler", icon: CalendarClock },
     ],
   },
   {
@@ -64,7 +65,6 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: "SLA", href: "/assurance-events/sla", icon: Clock },
       { name: "Notifications", href: "/assurance-events/notifications", icon: Bell },
-      { name: "Scheduler", href: "/assurance-events/scheduler", icon: CalendarClock },
     ],
   },
 ];

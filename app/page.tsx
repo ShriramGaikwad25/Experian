@@ -334,7 +334,7 @@ export default function Home() {
             })}
           />
           <Widget
-            title="Datalake Entitlements" subtitle="IIQ entitlements (first rows)"
+            title="Data Explorer" subtitle="IIQ entitlements (first rows)"
             href="/assurance-events/datalake/entitlements" query={entitlements}
             summarize={(d) => ({
               count: null,
