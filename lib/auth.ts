@@ -337,6 +337,10 @@ export async function clearAuthCookiesOnServer(): Promise<void> {
 export function forceLogout(reason?: string): void {
   console.error('🚨 FORCE LOGOUT TRIGGERED 🚨:', reason || 'Token verification/generation failed');
 
+  // Read before clearing: clearAllAuthCookies() drops the active tenant, and without it the
+  // redirect below would land on /logged-out instead of this tenant's sign-in page.
+  const tenant = getActiveTenantId() || getCurrentUser()?.tenantId?.trim() || null;
+
   void clearAuthCookiesOnServer();
   try {
     clearAllAuthCookies();
@@ -344,8 +348,8 @@ export function forceLogout(reason?: string): void {
   } catch (e) {
     console.error('Error clearing cookies:', e);
   }
-  
-  redirectToTenantLogin();
+
+  redirectToTenantLogin(tenant);
 }
 
 // Check if response contains token expired error and attempt refresh before logout
@@ -372,9 +376,7 @@ export async function checkTokenExpiredError(data: any): Promise<boolean> {
       } else {
         // Refresh failed - access token is also expired/invalid, logout
         console.error('🚨 TOKEN REFRESH FAILED - FORCING LOGOUT 🚨');
-        clearAllAuthCookies();
-        forceLogout('Token Expired - Refresh failed');
-        redirectToTenantLogin();
+        forceLogout('Token Expired - Refresh failed'); // clears cookies and redirects to the tenant's sign-in
         return true;
       }
     }
@@ -1261,7 +1263,6 @@ export async function apiRequestWithAuth<T>(
           if (statusStr === 'error' || statusStr === 'failed' || statusStr === 'unauthorized') {
             console.error('!!! JWT TOKEN STATUS IS ERROR - FORCING LOGOUT !!!');
             // Clear cookies immediately
-            clearAllAuthCookies();
             // Force logout immediately - this will redirect
             forceLogout(`JWT token status is ${statusStr}`);
             // Don't continue - redirect should happen
@@ -1272,7 +1273,6 @@ export async function apiRequestWithAuth<T>(
         // Also check for error message or error field
         if (data.error || data.Error || data.message === 'error' || data.message === 'failed') {
           console.error('!!! JWT TOKEN RESPONSE CONTAINS ERROR - FORCING LOGOUT !!!');
-          clearAllAuthCookies();
           forceLogout('JWT token response contains error');
           throw new Error('JWT token response contains error');
         }
@@ -1283,7 +1283,6 @@ export async function apiRequestWithAuth<T>(
           const msgLower = message.toLowerCase();
           if (msgLower.includes('error') || msgLower.includes('failed') || msgLower.includes('invalid') || msgLower.includes('unauthorized')) {
             console.error('!!! JWT TOKEN MESSAGE INDICATES ERROR - FORCING LOGOUT !!!');
-            clearAllAuthCookies();
             forceLogout(`JWT token message indicates error: ${message}`);
             throw new Error(`JWT token message indicates error: ${message}`);
           }

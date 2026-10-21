@@ -76,6 +76,9 @@ function applySessionToState(
   });
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT);
+  // A previous SSO logout in this tab leaves this set; with a live session again it is stale,
+  // and AuthWrapper would keep sending every page to /logged-out.
+  sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -104,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (pathTenant) {
           setActiveTenantId(pathTenant);
         }
-        const tenant = getActiveTenantId();
+        let tenant = getActiveTenantId();
         setActiveTenantIdState(tenant);
 
         if (isLoggedOutPath(path)) {
@@ -112,6 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(false);
           setUser(null);
           return;
+        }
+
+        // After an external (e.g. Oracle) SSO sign-in the tenant is only in HttpOnly cookies
+        // (tenantId / REGISTERED_APPNAME) that JS cannot read: take it from the server session.
+        if (!tenant) {
+          const session = await fetchServerSession();
+          const fromCookies = session.authenticated ? session.user?.tenantId?.trim() : '';
+          if (fromCookies) {
+            setActiveTenantId(fromCookies);
+            tenant = fromCookies;
+            setActiveTenantIdState(tenant);
+          }
         }
 
         if (!tenant) {
