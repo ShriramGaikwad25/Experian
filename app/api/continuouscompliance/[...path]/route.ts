@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccessTokenFromRequest } from "@/lib/serverAuth";
+import { getProxyAccessToken } from "@/lib/serverAuth";
 import { proxyAuthDiagnostics } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
@@ -27,10 +27,10 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-  let authSource: "browser" | "cookie" | "none" = headers.has("authorization") ? "browser" : "none";
+  let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
-    const accessToken = getAccessTokenFromRequest(request);
-    if (accessToken) { headers.set("authorization", `Bearer ${accessToken}`); authSource = "cookie"; }
+    const found = getProxyAccessToken(request);
+    if (found) { headers.set("authorization", `Bearer ${found.token}`); authSource = `cookie:${found.cookie}`; }
   }
   const diagnostics = proxyAuthDiagnostics(authSource, request.cookies.getAll().map((c) => c.name));
 

@@ -29,6 +29,21 @@ export function getAccessTokenFromRequest(request: NextRequest): string | null {
   }
 }
 
+/** Cookie KeyForge sets after an external (e.g. Oracle) SSO sign-in, holding the provider's access token. */
+export const OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE = "OAUTH_PROVIDER_ACCESSTOKEN";
+
+/**
+ * Access token our proxies forward when the browser sent no Authorization: the OAuth provider's
+ * (Oracle) access token when present, otherwise the accessToken cookie. Returns the cookie used.
+ */
+export function getProxyAccessToken(request: NextRequest): { token: string; cookie: string } | null {
+  for (const cookie of [OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE, COOKIE_NAMES.ACCESS_TOKEN]) {
+    const token = request.cookies.get(cookie)?.value?.trim();
+    if (token) return { token, cookie };
+  }
+  return null;
+}
+
 export function withAuthHeader(
   headers: HeadersInit | undefined,
   jwtToken: string | null

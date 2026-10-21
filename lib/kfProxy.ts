@@ -24,9 +24,9 @@ export const KF_AUTH_HEADER = "X-KF-Auth";
 
 /**
  * Diagnostic response headers for our proxies (no token values): where Authorization came from
- * (browser | cookie | none) and which cookie names reached the server.
+ * ("browser", "cookie:<name>" or "none") and which cookie names reached the server.
  */
-export function proxyAuthDiagnostics(authSource: "browser" | "cookie" | "none", cookieNames: string[]): Record<string, string> {
+export function proxyAuthDiagnostics(authSource: string, cookieNames: string[]): Record<string, string> {
   return { "X-KF-Proxy-Auth": authSource, "X-KF-Proxy-Cookies": cookieNames.join(",") || "(none)" };
 }
 
