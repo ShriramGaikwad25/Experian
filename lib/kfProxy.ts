@@ -1,0 +1,71 @@
+// =====================================================================
+// Server-side token proxy for sessions whose tokens are HttpOnly cookies.
+//
+// After an external (e.g. Oracle) SSO sign-in, KeyForge sets accessToken /
+// jwtToken as HttpOnly cookies: the browser holds them but our JS cannot read
+// them, so calls that attach `Authorization` themselves would go out without
+// it. For such sessions those calls are rerouted through /kfidp/api/kf/...
+// (app/api/kf), which adds the token from the cookie on the server and
+// forwards to the original KeyForge service. Sessions whose tokens JS can read
+// (password sign-in) are left exactly as they were.
+// =====================================================================
+
+import { withBasePath } from "@/lib/basePath";
+import { getBackendOrigin } from "@/lib/backendOrigin";
+
+/** Which cookie the proxy authorizes with: the master access token or the short-lived JWT. */
+export type KfProxyAuth = "access" | "jwt";
+
+export const KF_PROXY_PREFIX = withBasePath("/api/kf");
+/** Header naming the upstream origin (validated server-side against *.keyforge.ai). */
+export const KF_UPSTREAM_HEADER = "X-KF-Upstream";
+/** Header naming the token the proxy should add (KfProxyAuth). */
+export const KF_AUTH_HEADER = "X-KF-Auth";
+
+/** True for https://keyforge.ai and https://*.keyforge.ai — the only origins the proxy forwards to. */
+export function isKeyforgeOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    return u.protocol === "https:" && (u.hostname === "keyforge.ai" || u.hostname.endsWith(".keyforge.ai"));
+  } catch {
+    return false;
+  }
+}
+
+let httpOnlySession = false;
+
+/** Set by AuthContext: the session is valid but its tokens are HttpOnly (JS cannot read them). */
+export function setHttpOnlySession(value: boolean): void {
+  httpOnlySession = value;
+}
+
+export function usesHttpOnlySession(): boolean {
+  return httpOnlySession;
+}
+
+/**
+ * For an HttpOnly session, rewrites a direct KeyForge service call to go through the token proxy.
+ * Returns null when the call should go out unchanged (normal session, not a KeyForge service,
+ * already one of our own /kfidp routes, or it already carries an Authorization header).
+ */
+export function viaTokenProxy(url: string, init: RequestInit | undefined, auth: KfProxyAuth): { url: string; init: RequestInit } | null {
+  if (!httpOnlySession || typeof window === "undefined") return null;
+  let target: URL;
+  try {
+    target = new URL(url, window.location.href);
+  } catch {
+    return null;
+  }
+  const basePath = withBasePath("/");
+  const ownRoute = target.origin === window.location.origin && (target.pathname === basePath.replace(/\/$/, "") || target.pathname.startsWith(basePath));
+  if (ownRoute) return null;
+  const backend = target.origin === getBackendOrigin() || target.origin === window.location.origin;
+  if (!backend && !isKeyforgeOrigin(target.origin)) return null;
+
+  const headers = new Headers(init?.headers);
+  if (headers.get("Authorization")?.trim()) return null;
+  headers.delete("Authorization");
+  headers.set(KF_UPSTREAM_HEADER, target.origin);
+  if (!headers.has(KF_AUTH_HEADER)) headers.set(KF_AUTH_HEADER, auth);
+  return { url: `${KF_PROXY_PREFIX}${target.pathname}${target.search}`, init: { ...init, headers } };
+}

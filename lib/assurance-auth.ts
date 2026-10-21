@@ -13,6 +13,7 @@
 
 import { COOKIE_NAMES, forceLogout, getCookie, resolveTenantIdForHeader } from "@/lib/auth";
 import { getOriginalFetch } from "@/lib/authFetch";
+import { viaTokenProxy } from "@/lib/kfProxy";
 
 /** The signed-in user's access token (cookie), or null. */
 export function getAssuranceAccessToken(): string | null {
@@ -63,7 +64,16 @@ export async function assuranceFetch(input: string, init: RequestInit = {}): Pro
   const token = getAssuranceAccessToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  else headers.delete("Authorization");
+  else {
+    headers.delete("Authorization");
+    // Direct service calls (kfmailserver, kfscheduler, ...) get the token from the cookie via the token proxy.
+    const proxied = viaTokenProxy(input, { ...init, headers }, "access");
+    if (proxied) {
+      input = proxied.url;
+      init = proxied.init;
+      new Headers(proxied.init.headers).forEach((v, k) => headers.set(k, v));
+    }
+  }
   const tenant = resolveTenantIdForHeader();
   if (tenant && !headers.has("X-Tenant-Id")) headers.set("X-Tenant-Id", tenant);
 

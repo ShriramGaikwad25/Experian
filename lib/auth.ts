@@ -1,6 +1,7 @@
 // Authentication API endpoints and utilities
 import { getBackendOrigin, USE_SERVER_PROXY } from "@/lib/backendOrigin";
 import { withBasePath } from "@/lib/basePath";
+import { KF_AUTH_HEADER, usesHttpOnlySession } from "@/lib/kfProxy";
 import {
   clearActiveTenantId,
   getActiveTenantId,
@@ -1072,7 +1073,8 @@ export function getJwtAuthHeaders(extra?: Record<string, string>): Record<string
 export function getAccessTokenAuthHeaders(extra?: Record<string, string>): Record<string, string> {
   const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
   return {
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    // Unreadable (HttpOnly) token: tell the token proxy to authorize with the access token, not the JWT.
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : usesHttpOnlySession() ? { [KF_AUTH_HEADER]: 'access' } : {}),
     'X-Tenant-Id': resolveTenantIdForHeader(),
     ...extra,
   };
@@ -1085,7 +1087,9 @@ export async function apiRequestWithAuth<T>(
 ): Promise<T> {
   const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
-  if (!jwtToken) {
+  // An HttpOnly session (external SSO) has a JWT JS cannot read: the patched fetch sends the call
+  // through the token proxy, which adds it from the cookie.
+  if (!jwtToken && !usesHttpOnlySession()) {
     forceLogout('No JWT token available');
     throw new Error('No JWT token available');
   }
@@ -1093,7 +1097,7 @@ export async function apiRequestWithAuth<T>(
   // For GET requests, don't include Content-Type header (some servers reject it)
   const isGetRequest = (options.method || 'GET').toUpperCase() === 'GET';
   const headers: Record<string, string> = {
-    'Authorization': `Bearer ${jwtToken}`,
+    ...(jwtToken ? { 'Authorization': `Bearer ${jwtToken}` } : {}),
     'X-Tenant-Id': resolveTenantIdForHeader(),
     ...(options.headers as Record<string, string>),
   };

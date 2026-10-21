@@ -37,6 +37,7 @@ import {
   setActiveTenantId,
 } from '@/lib/tenant';
 import { ensureAuthFetchPatched } from '@/lib/authFetch';
+import { setHttpOnlySession } from '@/lib/kfProxy';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -79,6 +80,8 @@ function applySessionToState(
   // A previous SSO logout in this tab leaves this set; with a live session again it is stale,
   // and AuthWrapper would keep sending every page to /logged-out.
   sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
+  // Valid session whose tokens JS cannot read (HttpOnly, external SSO): route calls via the token proxy.
+  setHttpOnlySession(!(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN)));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
