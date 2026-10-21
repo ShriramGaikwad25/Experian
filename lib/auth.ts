@@ -145,7 +145,34 @@ export function getCookie(name: string): string | null {
       return decodeURIComponent(value);
     }
   }
-  return null;
+  return exposedTokens.get(name) ?? null;
+}
+
+/**
+ * Tokens from HttpOnly cookies (external SSO sign-in) that JS cannot read, handed over by
+ * /api/auth/tokens and kept in memory only. getCookie() falls back to them, so every caller
+ * attaches `Authorization: Bearer` exactly as after a password sign-in.
+ */
+const exposedTokens = new Map<string, string>();
+
+/** Loads the session's tokens from /api/auth/tokens into memory; true when both were returned. */
+export async function loadExposedTokens(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const res = await fetch(withBasePath('/api/auth/tokens'), { credentials: 'include', cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { accessToken?: string | null; jwtToken?: string | null };
+    exposedTokens.clear();
+    if (data.accessToken) exposedTokens.set(COOKIE_NAMES.ACCESS_TOKEN, data.accessToken);
+    if (data.jwtToken) exposedTokens.set(COOKIE_NAMES.JWT_TOKEN, data.jwtToken);
+    return !!(data.accessToken && data.jwtToken);
+  } catch {
+    return false;
+  }
+}
+
+export function clearExposedTokens(): void {
+  exposedTokens.clear();
 }
 
 const ACCESS_TOKEN_COOKIE_ALIASES = [
@@ -165,7 +192,8 @@ const JWT_TOKEN_COOKIE_ALIASES = [
 function getCookieFromAliases(names: readonly string[]): string | null {
   for (const name of names) {
     const value = getCookie(name);
-    if (value) return value;
+    // Real cookies only: in-memory tokens (getCookie's fallback) must not be written back as cookies.
+    if (value && value !== exposedTokens.get(name)) return value;
   }
   return null;
 }
@@ -315,6 +343,7 @@ export function clearAllAuthCookies(options?: { preserveLogoutRedirect?: boolean
     deleteCookie(name);
   }
 
+  clearExposedTokens();
   clearActiveTenantId();
   clearAuthSessionStorage(preserveLogoutRedirect);
   clearPersistedApplicationAuthType();
