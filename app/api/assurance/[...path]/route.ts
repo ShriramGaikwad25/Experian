@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessTokenFromRequest } from "@/lib/serverAuth";
+import { proxyAuthDiagnostics } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Assurance (compliance) service. The
 // browser calls /api/assurance/* on our own origin and this handler forwards
@@ -23,10 +24,12 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     if (value) headers.set(name, value);
   }
   // After an external SSO sign-in the access token is an HttpOnly cookie the browser cannot read.
+  let authSource: "browser" | "cookie" | "none" = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
     const accessToken = getAccessTokenFromRequest(request);
-    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+    if (accessToken) { headers.set("authorization", `Bearer ${accessToken}`); authSource = "cookie"; }
   }
+  const diagnostics = proxyAuthDiagnostics(authSource, request.cookies.getAll().map((c) => c.name));
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
@@ -41,7 +44,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const body = await upstream.text();
     return new NextResponse(body || null, {
       status: upstream.status,
-      headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json" },
+      headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json", ...diagnostics },
     });
   } catch (error) {
     console.error("Assurance proxy error:", error);

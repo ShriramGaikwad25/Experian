@@ -22,6 +22,14 @@ export const KF_UPSTREAM_HEADER = "X-KF-Upstream";
 /** Header naming the token the proxy should add (KfProxyAuth). */
 export const KF_AUTH_HEADER = "X-KF-Auth";
 
+/**
+ * Diagnostic response headers for our proxies (no token values): where Authorization came from
+ * (browser | cookie | none) and which cookie names reached the server.
+ */
+export function proxyAuthDiagnostics(authSource: "browser" | "cookie" | "none", cookieNames: string[]): Record<string, string> {
+  return { "X-KF-Proxy-Auth": authSource, "X-KF-Proxy-Cookies": cookieNames.join(",") || "(none)" };
+}
+
 /** True for https://keyforge.ai and https://*.keyforge.ai — the only origins the proxy forwards to. */
 export function isKeyforgeOrigin(origin: string): boolean {
   try {
