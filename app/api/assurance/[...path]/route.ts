@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAccessTokenFromRequest } from "@/lib/serverAuth";
 
 // Server-side proxy to the Continuous Assurance (compliance) service. The
 // browser calls /api/assurance/* on our own origin and this handler forwards
@@ -20,6 +21,11 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   for (const name of FORWARDED_HEADERS) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
+  }
+  // After an external SSO sign-in the access token is an HttpOnly cookie the browser cannot read.
+  if (!headers.has("authorization")) {
+    const accessToken = getAccessTokenFromRequest(request);
+    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
   }
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";

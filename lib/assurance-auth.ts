@@ -55,16 +55,15 @@ export function logoutOnTokenExpired(reason = "Token Expired"): void {
 
 /**
  * fetch() for Assurance Events: sends the access token (and tenant) and logs the user out when the
- * answer is a token-expired one. With no access token at all, the user is logged out straight away.
+ * answer is a token-expired one. When JS cannot read the token (an HttpOnly cookie, as after an
+ * external SSO sign-in) the request goes without it and our proxies add it from the cookie; only
+ * the service's answer (401 / token expired) decides that the session is over.
  */
 export async function assuranceFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const token = getAssuranceAccessToken();
-  if (!token) {
-    logoutOnTokenExpired("No access token");
-    throw new Error("Your session has expired. Please sign in again.");
-  }
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  else headers.delete("Authorization");
   const tenant = resolveTenantIdForHeader();
   if (tenant && !headers.has("X-Tenant-Id")) headers.set("X-Tenant-Id", tenant);
 
