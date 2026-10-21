@@ -33,11 +33,21 @@ export function getAccessTokenFromRequest(request: NextRequest): string | null {
 export const OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE = "OAUTH_PROVIDER_ACCESSTOKEN";
 
 /**
- * Access token our proxies forward when the browser sent no Authorization: the OAuth provider's
- * (Oracle) access token when present, otherwise the accessToken cookie. Returns the cookie used.
+ * Token our proxies forward when the browser sent no Authorization. Returns the cookie used.
+ * - Password sign-in: the accessToken cookie.
+ * - External SSO sign-in (OAUTH_PROVIDER_ACCESSTOKEN present): the KeyForge jwtToken by default,
+ *   because the Continuous Compliance service cannot verify the provider's (Oracle) token yet;
+ *   PROXY_SSO_TOKEN=provider sends the provider token instead.
  */
 export function getProxyAccessToken(request: NextRequest): { token: string; cookie: string } | null {
-  for (const cookie of [OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE, COOKIE_NAMES.ACCESS_TOKEN]) {
+  const sso = !!request.cookies.get(OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE)?.value;
+  const sendProvider = (process.env.PROXY_SSO_TOKEN ?? "jwt").trim().toLowerCase() === "provider";
+  const order = !sso
+    ? [COOKIE_NAMES.ACCESS_TOKEN]
+    : sendProvider
+      ? [OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE, COOKIE_NAMES.ACCESS_TOKEN]
+      : [COOKIE_NAMES.JWT_TOKEN, OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE, COOKIE_NAMES.ACCESS_TOKEN];
+  for (const cookie of order) {
     const token = request.cookies.get(cookie)?.value?.trim();
     if (token) return { token, cookie };
   }
