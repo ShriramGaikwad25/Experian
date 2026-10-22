@@ -249,21 +249,40 @@ export async function fetchServerSession(): Promise<ServerSessionCheck> {
   }
 }
 
+/**
+ * Parent domain KeyForge's identity service sets its cookies on (e.g. `.keyforge.ai` for
+ * identity.keyforge.ai), or null on other hosts (localhost). A cookie is only removed by an
+ * expiry carrying the same domain, so logout must clear both host-only and domain cookies.
+ */
+export function sharedCookieDomain(host: string): string | null {
+  const h = host.split(':')[0].toLowerCase();
+  return h === 'keyforge.ai' || h.endsWith('.keyforge.ai') ? '.keyforge.ai' : null;
+}
+
 export function deleteCookie(name: string): void {
   if (typeof document === 'undefined') return;
   const expired = 'Thu, 01 Jan 1970 00:00:00 UTC';
-  document.cookie = `${name}=;expires=${expired};path=/;`;
-  document.cookie = `${name}=;expires=${expired};path=/;secure;`;
-  document.cookie = `${name}=;expires=${expired};path=/;samesite=strict;`;
-  document.cookie = `${name}=;expires=${expired};path=/;samesite=strict;secure;`;
+  const domain = sharedCookieDomain(window.location.hostname);
+  for (const d of domain ? ['', `domain=${domain};`] : ['']) {
+    document.cookie = `${name}=;expires=${expired};path=/;${d}`;
+    document.cookie = `${name}=;expires=${expired};path=/;${d}secure;`;
+    document.cookie = `${name}=;expires=${expired};path=/;${d}samesite=strict;`;
+    document.cookie = `${name}=;expires=${expired};path=/;${d}samesite=strict;secure;`;
+  }
 }
 
-/** All cookie names used by auth (for client + server logout). */
+/** All cookie names used by auth (for client + server logout), including those KeyForge sets after SSO. */
 export const AUTH_COOKIE_NAMES_TO_CLEAR = [
   ...Object.values(COOKIE_NAMES),
   ...ACCESS_TOKEN_COOKIE_ALIASES,
   ...JWT_TOKEN_COOKIE_ALIASES,
   REGISTERED_APP_COOKIE,
+  'JWT_ACCESSTOKEN',
+  'OAUTH_PROVIDER_ACCESSTOKEN',
+  'LOGGEDIN_USERID',
+  'REGISTERED_APPNAME',
+  'userid',
+  'tenantId',
 ] as const;
 
 function getBrowserCookieNames(): string[] {
@@ -353,10 +372,12 @@ export function clearAllAuthCookies(options?: { preserveLogoutRedirect?: boolean
 export async function clearAuthCookiesOnServer(): Promise<void> {
   if (typeof window === 'undefined') return;
   try {
+    // keepalive: callers navigate away right after; without it the browser cancels this request.
     await fetch(withBasePath('/api/auth/logout'), {
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',
+      keepalive: true,
     });
   } catch {
     /* ignore */
@@ -827,10 +848,11 @@ export function performUserLogout(
 
   clearAllAuthCookies({ preserveLogoutRedirect: external });
 
+  // Start before navigating (keepalive lets it finish after the page unloads): clears HttpOnly cookies.
+  void clearAuthCookiesOnServer();
+
   // Navigate immediately so AuthWrapper cannot redirect to tenant login first.
   window.location.replace(withBasePath(target));
-
-  void clearAuthCookiesOnServer();
 }
 
 export function clearLogoutRedirectFlag(): void {
