@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getUserAdminRoles } from "@/lib/auth";
+import { getUserAdminRoles, onSessionClaimsChange } from "@/lib/auth";
 import type { NavItem } from "@/components/Navi";
 
 /**
@@ -37,11 +37,16 @@ export function readRoleAccess(): RoleAccess {
   };
 }
 
-/** Role access for the signed-in user; null until read on the client (cookies). */
+/**
+ * Role access for the signed-in user; null until read on the client. Roles come from the JWT claims
+ * the server hands over (lib/auth.ts), so this re-reads them whenever they change: sign-in while
+ * this component is mounted, a JWT refresh, logout.
+ */
 export function useRoleAccess(): RoleAccess | null {
   const [access, setAccess] = useState<RoleAccess | null>(null);
   useEffect(() => {
     setAccess(readRoleAccess());
+    return onSessionClaimsChange(() => setAccess(readRoleAccess()));
   }, []);
   return access;
 }

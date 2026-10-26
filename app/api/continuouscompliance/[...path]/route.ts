@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProxyAccessToken } from "@/lib/serverAuth";
-import { proxyAuthDiagnostics } from "@/lib/kfProxy";
+import { isTokenPlaceholder, proxyAuthDiagnostics } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
 // Continuous Compliance Console (graph.keyforge.ai/console). The browser
@@ -27,6 +27,8 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  // A token placeholder (lib/kfProxy.ts) is not a token: use the cookie instead.
+  if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
   let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
     const found = getProxyAccessToken(request);

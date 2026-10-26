@@ -2,7 +2,7 @@ import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout, resolveTenantIdF
 import { isBackendUrl } from "@/lib/backendOrigin";
 import { withBasePath } from "@/lib/basePath";
 import { isAssuranceApiUrl } from "@/lib/assurance-api";
-import { viaTokenProxy } from "@/lib/kfProxy";
+import { routeTokenPlaceholder } from "@/lib/kfProxy";
 
 let fetchPatched = false;
 let originalFetch: typeof window.fetch | null = null;
@@ -86,9 +86,12 @@ export function getOriginalFetch(): typeof window.fetch {
   }
   const rawFetch = originalFetch;
   // Still "original" w.r.t. the 401-retry/refresh logic below — but every caller of
-  // getOriginalFetch() deliberately bypasses that logic while still needing X-Tenant-Id.
-  return ((input: RequestInfo | URL, init?: RequestInit) =>
-    rawFetch(input, withTenantHeader(input, init))) as typeof window.fetch;
+  // getOriginalFetch() deliberately bypasses that logic while still needing X-Tenant-Id,
+  // and a token placeholder still has to reach the token proxy.
+  return ((input: RequestInfo | URL, init?: RequestInit) => {
+    const [url, routed] = routeTokenPlaceholder(input, init, "access");
+    return rawFetch(url, withTenantHeader(url, routed));
+  }) as typeof window.fetch;
 }
 
 /**
@@ -109,17 +112,22 @@ export function ensureAuthFetchPatched(): void {
       (typeof init?.headers === "object" && !Array.isArray(init?.headers) && (init.headers as Record<string, string>)[RETRY_HEADER] === "1");
 
     if (isAssuranceRequest(input)) {
-      return originalFetch!(input, init);
+      const [url, routed] = routeTokenPlaceholder(input, init, "access");
+      return originalFetch!(url, routed);
     }
 
     try {
       const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
+      // jwtToken is the placeholder in a signed-in session (tokens are HttpOnly): send() routes the
+      // call through the token proxy, which swaps it for the token from the cookie.
+      const send = (i: RequestInit | undefined) => {
+        const [url, routed] = routeTokenPlaceholder(input, i, "jwt");
+        return originalFetch!(url, withTenantHeader(url, routed));
+      };
+
       if (!jwtToken && !isRetry) {
-        // HttpOnly session (external SSO): the token proxy adds the JWT from the cookie.
-        const proxied = typeof input === "string" || input instanceof URL ? viaTokenProxy(requestUrl(input), init, "jwt") : null;
-        if (proxied) return originalFetch!(proxied.url, withTenantHeader(proxied.url, proxied.init));
-        return originalFetch!(input, withTenantHeader(input, init));
+        return send(init);
       }
 
       const headers = toHeaders(init?.headers);
@@ -136,7 +144,7 @@ export function ensureAuthFetchPatched(): void {
 
       const nextInit: RequestInit = { ...init, headers };
 
-      const promise = originalFetch!(input, nextInit);
+      const promise = send(nextInit);
 
       if (isRetry || !isKeyforgeRequest(input)) {
         return promise;
@@ -153,7 +161,7 @@ export function ensureAuthFetchPatched(): void {
           const newHeaders = new Headers(nextInit.headers as Headers);
           newHeaders.set("Authorization", `Bearer ${newJwt}`);
           newHeaders.set(RETRY_HEADER, "1");
-          return originalFetch!(input, { ...nextInit, headers: newHeaders });
+          return send({ ...nextInit, headers: newHeaders });
         };
 
         if (response.status === 401 || response.status === 403) {

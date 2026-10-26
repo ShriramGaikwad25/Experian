@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProxyAccessToken } from "@/lib/serverAuth";
-import { proxyAuthDiagnostics } from "@/lib/kfProxy";
+import { isTokenPlaceholder, proxyAuthDiagnostics } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Assurance (compliance) service. The
 // browser calls /api/assurance/* on our own origin and this handler forwards
@@ -23,6 +23,8 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  // A token placeholder (lib/kfProxy.ts) is not a token: use the cookie instead.
+  if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
   // After an external SSO sign-in the access token is an HttpOnly cookie the browser cannot read.
   let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {

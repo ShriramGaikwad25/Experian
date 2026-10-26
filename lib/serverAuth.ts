@@ -67,6 +67,22 @@ export function isAccessTokenExpired(token: string): boolean {
   }
 }
 
+/**
+ * The JWT's payload (the signed-in user's own claims: userid, adminRoles, tenant id, ...), or null.
+ * Decoded on the server because the token is an HttpOnly cookie page code cannot read; callers
+ * check the token with checkJwt first.
+ */
+export function decodeJwtClaims(token: string | null | undefined): Record<string, unknown> | null {
+  const part = token?.split(".")[1];
+  if (!part) return null;
+  try {
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(part))) as unknown;
+    return payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getJwtTokenFromRequest(request: NextRequest): string | null {
   try {
     return request.cookies.get(COOKIE_NAMES.JWT_TOKEN)?.value ?? null;
