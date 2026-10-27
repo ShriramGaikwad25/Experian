@@ -17,7 +17,8 @@ import {
   BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER_FLUSH, PageHeader, PageSpinner, Spinner,
   TBODY, TD, TH, THEAD_ROW, TabBar, cx,
 } from "@/components/assurance-events/ui";
-import { resolveTenantIdForHeader } from "@/lib/auth";
+import { COOKIE_NAMES, getCookie, refreshJWTToken, resolveTenantIdForHeader } from "@/lib/auth";
+import { getOriginalFetch } from "@/lib/authFetch";
 import { formatAbsolute } from "@/lib/assurance-format";
 
 const ENTITIES_ORIGIN = "https://preview.keyforge.ai";
@@ -64,11 +65,19 @@ function extractRows(data: unknown): Row[] {
 
 async function executeNamedQuery(query: string, limit: number, offset: number): Promise<Row[]> {
   const tenant = resolveTenantIdForHeader() || DEFAULT_TENANT;
-  const res = await fetch(`${ENTITIES_ORIGIN}/entities/api/v1/${encodeURIComponent(tenant)}/executeNamedQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, parameters: [limit, offset] }),
-  });
+  // Sent past the global fetch patch: a 401/403 there signs the user out when the token can't be
+  // renewed (SSO sessions), so a rejected query here would bounce an SSO user to sign-in.
+  // Renew once and retry; if it is still rejected, show the error on the page.
+  const send = () => {
+    const jwt = getCookie(COOKIE_NAMES.JWT_TOKEN);
+    return getOriginalFetch()(`${ENTITIES_ORIGIN}/entities/api/v1/${encodeURIComponent(tenant)}/executeNamedQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+      body: JSON.stringify({ query, parameters: [limit, offset] }),
+    });
+  };
+  let res = await send();
+  if ((res.status === 401 || res.status === 403) && (await refreshJWTToken())) res = await send();
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const o = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
@@ -306,7 +315,7 @@ function workgroupColumns(_rows: Row[], attrs: string[]): Column[] {
 }
 
 export default function DataExplorerPage() {
-  const [selected, setSelected] = useState(OBJECT_TYPES[0].name);
+  const [selected, setSelected] = useState("Entitlement");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
 
