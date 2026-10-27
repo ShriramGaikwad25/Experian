@@ -19,6 +19,7 @@ import {
 } from "@/components/assurance-events/ui";
 import { COOKIE_NAMES, getCookie, refreshJWTToken, resolveTenantIdForHeader } from "@/lib/auth";
 import { getOriginalFetch } from "@/lib/authFetch";
+import { ccRequest } from "@/lib/controls-api";
 import { formatAbsolute } from "@/lib/assurance-format";
 
 const ENTITIES_ORIGIN = "https://preview.keyforge.ai";
@@ -36,12 +37,13 @@ interface Column {
 }
 
 /**
- * `query` is the entities service named query (null until it is known).
+ * `query` is the entities service named query (null until it is known); `load`, when set,
+ * fetches the rows from another API instead.
  * `columns` maps the rows to a fixed column set; without it every field becomes a column.
  */
-const OBJECT_TYPES: { name: string; icon: LucideIcon; query: string | null; columns?: (rows: Row[], attrs: string[]) => Column[] }[] = [
+const OBJECT_TYPES: { name: string; icon: LucideIcon; query: string | null; load?: (limit: number, offset: number) => Promise<Row[]>; columns?: (rows: Row[], attrs: string[]) => Column[] }[] = [
   { name: "Identity", icon: UserRound, query: "GET_IIQ_ALL_IDENTITIES", columns: identityColumns },
-  { name: "Entitlement", icon: KeyRound, query: "GET_IIQ_ALL_ENTITLEMENTS", columns: entitlementColumns },
+  { name: "Entitlement", icon: KeyRound, query: "catalog/entitlements", load: catalogEntitlements },
   { name: "Application", icon: AppWindow, query: "GET_IIQ_ALL_APPLICATIONS", columns: applicationColumns },
   { name: "Account", icon: IdCard, query: "GET_IIQ_ALL_ACCOUNTS", columns: accountColumns },
   { name: "Workgroup", icon: Users, query: "GET_IIQ_ALL_WORKGROUPS", columns: workgroupColumns },
@@ -56,7 +58,7 @@ function extractRows(data: unknown): Row[] {
   if (Array.isArray(data)) return data as Row[];
   if (data && typeof data === "object") {
     const o = data as Record<string, unknown>;
-    for (const key of ["resultSet", "rows", "data", "items", "content"]) {
+    for (const key of ["resultSet", "rows", "data", "items", "content", "entitlements", "results"]) {
       if (Array.isArray(o[key])) return o[key] as Row[];
     }
   }
@@ -84,6 +86,14 @@ async function executeNamedQuery(query: string, limit: number, offset: number): 
     const msg = o?.error ?? o?.message;
     throw new Error(msg ? String(msg) : `Request failed: ${res.status}`);
   }
+  return extractRows(data);
+}
+
+/** Entitlement tab: GET graph.keyforge.ai/continuouscompliance/api/v1/{tenant}/catalog/entitlements. */
+async function catalogEntitlements(limit: number, offset: number): Promise<Row[]> {
+  const data = await ccRequest<unknown>("GET", "/catalog/entitlements", {
+    query: { limit: String(limit), offset: String(offset) },
+  });
   return extractRows(data);
 }
 
@@ -257,23 +267,6 @@ function identityColumns(rows: Row[], attrs: string[]): Column[] {
   return columns;
 }
 
-/** GET_IIQ_ALL_ENTITLEMENTS: only these fields; attribute keys become their own columns. */
-function entitlementColumns(_rows: Row[], attrs: string[]): Column[] {
-  return [
-    { key: "displayable_name", label: "Name", text: (r) => cellText(r.displayable_name) },
-    { key: "attribute", label: "Attribute", text: (r) => cellText(r.attribute) },
-    { key: "type", label: "Type", text: (r) => cellText(r.type) },
-    { key: "application_name", label: "Application", text: (r) => cellText(r.application_name) },
-    { key: "aggregated", label: "Aggregated", text: (r) => yesNo(r.aggregated) },
-    { key: "iiq_elevated_access", label: "Elevated Access", text: (r) => yesNo(r.iiq_elevated_access) },
-    { key: "owner_name", label: "Owner", text: (r) => cellText(r.owner_name) },
-    ...attributeColumns(attrs),
-    statusColumn("is_inactive"),
-    { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
-    { key: "modified_at", label: "Modified At", text: (r) => dateText(r.modified_at) },
-  ];
-}
-
 /** GET_IIQ_ALL_ACCOUNTS: only these fields; attribute keys become their own columns. */
 function accountColumns(_rows: Row[], attrs: string[]): Column[] {
   return [
@@ -324,7 +317,7 @@ export default function DataExplorerPage() {
 
   const q = useQuery({
     queryKey: ["datalake", "named-query", query, PAGE_SIZE, page],
-    queryFn: () => executeNamedQuery(query!, PAGE_SIZE, (page - 1) * PAGE_SIZE),
+    queryFn: () => (type.load ?? ((limit, offset) => executeNamedQuery(query!, limit, offset)))(PAGE_SIZE, (page - 1) * PAGE_SIZE),
     enabled: !!query,
   });
   const rows = useMemo(() => q.data ?? [], [q.data]);
