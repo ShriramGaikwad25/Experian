@@ -11,6 +11,7 @@
 // =====================================================================
 
 import { useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AppWindow, IdCard, KeyRound, RefreshCw, ShieldUser, UserRound, Users, type LucideIcon } from "lucide-react";
 import {
@@ -20,6 +21,7 @@ import {
 import { COOKIE_NAMES, getCookie, refreshJWTToken, resolveTenantIdForHeader } from "@/lib/auth";
 import { getOriginalFetch } from "@/lib/authFetch";
 import { ccRequest } from "@/lib/controls-api";
+import { SeverityBadge } from "@/components/assurance-events/definition-editor/fields";
 import { formatAbsolute } from "@/lib/assurance-format";
 
 const ENTITIES_ORIGIN = "https://preview.keyforge.ai";
@@ -34,6 +36,8 @@ interface Column {
   label: string;
   text: (row: Row) => string;
   render?: (row: Row) => ReactNode;
+  /** Let the cell wrap onto several lines instead of truncating it. */
+  wrap?: boolean;
 }
 
 /**
@@ -43,7 +47,7 @@ interface Column {
  */
 const OBJECT_TYPES: { name: string; icon: LucideIcon; query: string | null; load?: (limit: number, offset: number) => Promise<Row[]>; columns?: (rows: Row[], attrs: string[]) => Column[] }[] = [
   { name: "Identity", icon: UserRound, query: "GET_IIQ_ALL_IDENTITIES", columns: identityColumns },
-  { name: "Entitlement", icon: KeyRound, query: "catalog/entitlements", load: catalogEntitlements },
+  { name: "Entitlement", icon: KeyRound, query: "catalog/entitlements", load: catalogEntitlements, columns: catalogEntitlementColumns },
   { name: "Application", icon: AppWindow, query: "GET_IIQ_ALL_APPLICATIONS", columns: applicationColumns },
   { name: "Account", icon: IdCard, query: "GET_IIQ_ALL_ACCOUNTS", columns: accountColumns },
   { name: "Workgroup", icon: Users, query: "GET_IIQ_ALL_WORKGROUPS", columns: workgroupColumns },
@@ -89,12 +93,134 @@ async function executeNamedQuery(query: string, limit: number, offset: number): 
   return extractRows(data);
 }
 
-/** Entitlement tab: GET graph.keyforge.ai/continuouscompliance/api/v1/{tenant}/catalog/entitlements. */
-async function catalogEntitlements(limit: number, offset: number): Promise<Row[]> {
-  const data = await ccRequest<unknown>("GET", "/catalog/entitlements", {
-    query: { limit: String(limit), offset: String(offset) },
-  });
-  return extractRows(data);
+/**
+ * Entitlement tab: GET graph.keyforge.ai/continuouscompliance/api/v1/{tenant}/catalog/entitlements
+ * → { items, summary }. It has no paging: every entitlement comes back at once.
+ */
+async function catalogEntitlements(): Promise<Row[]> {
+  return extractRows(await ccRequest<unknown>("GET", "/catalog/entitlements"));
+}
+
+// ---------- Entitlement tab (catalog rows, drawn like the console's Catalog → Entitlements) ----------
+
+interface CatalogGroup { exists?: boolean; workgroupId?: string; workgroupCode?: string; displayName?: string; memberCount?: number; activeMembers?: number }
+interface CatalogEvent { eventId: string; definitionCode?: string; definitionName?: string; status?: string; role?: string }
+
+const asGroup = (v: unknown) => (v && typeof v === "object" ? (v as CatalogGroup) : null);
+const asOwner = (v: unknown) => (v && typeof v === "object" ? (v as { displayName?: string; principalId?: string; status?: string }) : null);
+const asEvents = (v: unknown) => (Array.isArray(v) ? (v as CatalogEvent[]) : []);
+
+const BAD = "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-red-100 text-red-700";
+const WARN = "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-amber-100 text-amber-700";
+
+function groupText(v: unknown): string {
+  const g = asGroup(v);
+  if (!g) return "—";
+  if (!g.exists) return `does not exist ${g.workgroupId ?? ""}`.trim();
+  return `${g.workgroupCode || g.displayName || ""} ${g.activeMembers ?? 0}/${g.memberCount ?? 0} active`;
+}
+
+/** Workgroup code and how many members are still active (the console's approval / fallback group cell). */
+function GroupCell({ value }: { value: unknown }) {
+  const g = asGroup(value);
+  if (!g) return <span className="text-gray-400">—</span>;
+  if (!g.exists) {
+    return (
+      <>
+        <span className={BAD}>does not exist</span>
+        <div className="text-xs text-gray-500 font-mono">{(g.workgroupId ?? "").slice(0, 13)}…</div>
+      </>
+    );
+  }
+  const total = g.memberCount ?? 0;
+  const active = g.activeMembers ?? 0;
+  return (
+    <>
+      <div className="font-semibold text-gray-900 whitespace-nowrap">{g.workgroupCode || g.displayName}</div>
+      <div className="mt-0.5">
+        {total === 0 ? <span className={BAD}>no members</span>
+          : active < total ? <span className={WARN}>{active}/{total} active · {total - active} left</span>
+          : <span className="text-xs text-gray-500">{active} active</span>}
+      </div>
+    </>
+  );
+}
+
+function catalogEntitlementColumns(): Column[] {
+  return [
+    {
+      key: "name", label: "Entitlement", wrap: true,
+      text: (r) => `${cellText(r.name || r.entitlementId)} ${cellText(r.description)}`,
+      render: (r) => (
+        <div className="min-w-[220px] max-w-[360px]">
+          <div className="font-mono font-semibold text-gray-900">{cellText(r.name || r.entitlementId)}</div>
+          <div className="text-xs text-gray-500 break-words">{isPresent(r.description) ? String(r.description) : <i>no description</i>}</div>
+          {(r.privileged === true || r.requestable === false) && (
+            <div className="flex gap-1 mt-1">
+              {r.privileged === true && <span className={WARN}>privileged</span>}
+              {r.requestable === false && <span className={BAD}>not requestable</span>}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    { key: "application", label: "Application", text: (r) => cellText(r.application) },
+    {
+      key: "owner", label: "Owner", wrap: true,
+      text: (r) => cellText(asOwner(r.owner)?.displayName ?? asOwner(r.owner)?.principalId),
+      render: (r) => {
+        const o = asOwner(r.owner);
+        if (!o) return <span className="text-gray-400">—</span>;
+        return (
+          <>
+            {o.displayName || <span className="font-mono text-xs text-gray-500">{(o.principalId ?? "").slice(0, 13)}…</span>}
+            {o.status && o.status !== "ACTIVE" && <div className="mt-0.5"><span className={BAD}>{o.status}</span></div>}
+          </>
+        );
+      },
+    },
+    { key: "approvalGroup", label: "Approval Group", wrap: true, text: (r) => groupText(r.approvalGroup), render: (r) => <GroupCell value={r.approvalGroup} /> },
+    {
+      key: "approvalLevel", label: "Levels",
+      text: (r) => cellText(r.approvalLevel),
+      render: (r) => {
+        const level = typeof r.approvalLevel === "number" ? r.approvalLevel : null;
+        if (!level || level <= 1) return <span className="text-gray-400">{level ?? "—"}</span>;
+        const chain = Array.isArray(r.approvalChain) ? (r.approvalChain as { level?: number; workgroupRef?: string }[]) : [];
+        return (
+          <span title={chain.map((c) => `level ${c.level}: ${c.workgroupRef || "—"}`).join("\n") || "no higher level configured"}>
+            {level} levels{chain.length < level - 1 && <> <span className={BAD}>L{chain.length + 2}+ missing</span></>}
+          </span>
+        );
+      },
+    },
+    { key: "fallbackGroup", label: "Fallback Group", wrap: true, text: (r) => groupText(r.fallbackGroup), render: (r) => <GroupCell value={r.fallbackGroup} /> },
+    { key: "riskTier", label: "Risk", text: (r) => cellText(r.riskTier), render: (r) => (isPresent(r.riskTier) ? <SeverityBadge value={String(r.riskTier)} /> : "—") },
+    {
+      key: "events", label: "Events", wrap: true,
+      text: (r) => asEvents(r.events).map((e) => `${e.definitionCode ?? ""} ${e.status ?? ""}`).join(" ") || "none",
+      render: (r) => {
+        const events = asEvents(r.events);
+        if (!events.length) return <span className="text-gray-500">none</span>;
+        return (
+          <div className="flex flex-wrap gap-1.5 min-w-[170px]">
+            {events.map((e) => (
+              <Link
+                key={e.eventId + (e.role ?? "")}
+                href={`/assurance-events/all-events/${e.eventId}`}
+                title={`${e.definitionName || e.definitionCode} · ${e.status}${e.role === "MEMBER" ? " · member of a cluster" : ""}`}
+                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs whitespace-nowrap hover:bg-gray-200"
+              >
+                <b className="text-gray-900">{e.definitionCode}</b>
+                <span className="text-teal-700">{e.status}</span>
+                {e.role === "MEMBER" && <span className="text-gray-500">· member</span>}
+              </Link>
+            ))}
+          </div>
+        );
+      },
+    },
+  ];
 }
 
 /** "app_name" / "appName" → "App Name" */
@@ -336,7 +462,9 @@ export default function DataExplorerPage() {
     [rows, columns, term],
   );
 
-  const hasNext = rows.length >= PAGE_SIZE;
+  // A tab with its own `load` gets every row at once: no pages.
+  const paged = !type.load;
+  const hasNext = paged && rows.length >= PAGE_SIZE;
 
   const selectType = (name: string) => {
     setSelected(name);
@@ -361,7 +489,7 @@ export default function DataExplorerPage() {
                 <div className={CARD_TITLE}>{type.name}</div>
                 {query && (
                   <div className={CARD_SUBTITLE}>
-                    Page {page} · {visible.length}{term ? ` of ${rows.length}` : ""} row{visible.length === 1 ? "" : "s"}
+                    {paged && `Page ${page} · `}{visible.length}{term ? ` of ${rows.length}` : ""} row{visible.length === 1 ? "" : "s"}
                   </div>
                 )}
               </div>
@@ -404,7 +532,8 @@ export default function DataExplorerPage() {
                     {visible.map((r, i) => (
                       <tr key={i} className="hover:bg-gray-50">
                         {columns.map((c) => (
-                          <td key={c.key} className={cx(TD, "max-w-xs truncate")} title={c.text(r)}>
+                          <td key={c.key} className={cx(TD, c.wrap ? "align-top whitespace-normal" : "max-w-xs truncate")}
+                              title={c.wrap ? undefined : c.text(r)}>
                             {c.render ? c.render(r) : c.text(r)}
                           </td>
                         ))}
@@ -415,7 +544,7 @@ export default function DataExplorerPage() {
               </div>
             )}
 
-            {query && (
+            {query && paged && (
               <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 text-sm text-gray-600">
                 {q.isFetching && !q.isLoading && <Spinner />}
                 <button type="button" className={BTN_SECONDARY} onClick={() => setPage((p) => p - 1)} disabled={page <= 1 || q.isFetching}>
