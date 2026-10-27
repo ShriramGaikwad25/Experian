@@ -50,7 +50,7 @@ const OBJECT_TYPES: { name: string; icon: LucideIcon; query: string | null; load
   { name: "Entitlement", icon: KeyRound, query: "catalog/entitlements", load: catalogEntitlements, columns: catalogEntitlementColumns },
   { name: "Application", icon: AppWindow, query: "GET_IIQ_ALL_APPLICATIONS", columns: applicationColumns },
   { name: "Account", icon: IdCard, query: "GET_IIQ_ALL_ACCOUNTS", columns: accountColumns },
-  { name: "Workgroup", icon: Users, query: "GET_IIQ_ALL_WORKGROUPS", columns: workgroupColumns },
+  { name: "Workgroup", icon: Users, query: "catalog/workgroups", load: catalogWorkgroups, columns: catalogWorkgroupColumns },
   { name: "Role", icon: ShieldUser, query: "GET_IIQ_ROLES", columns: roleColumns },
 ];
 
@@ -101,6 +101,11 @@ async function catalogEntitlements(): Promise<Row[]> {
   return extractRows(await ccRequest<unknown>("GET", "/catalog/entitlements"));
 }
 
+/** Workgroup tab: GET …/{tenant}/catalog/workgroups — every workgroup at once, no paging. */
+async function catalogWorkgroups(): Promise<Row[]> {
+  return extractRows(await ccRequest<unknown>("GET", "/catalog/workgroups"));
+}
+
 // ---------- Entitlement tab (catalog rows, drawn like the console's Catalog → Entitlements) ----------
 
 interface CatalogGroup { exists?: boolean; workgroupId?: string; workgroupCode?: string; displayName?: string; memberCount?: number; activeMembers?: number }
@@ -112,6 +117,7 @@ const asEvents = (v: unknown) => (Array.isArray(v) ? (v as CatalogEvent[]) : [])
 
 const BAD = "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-red-100 text-red-700";
 const WARN = "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-amber-100 text-amber-700";
+const OK = "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-green-100 text-green-700";
 
 function groupText(v: unknown): string {
   const g = asGroup(v);
@@ -332,16 +338,6 @@ function MultiValueCell({ values }: { values: string[] }) {
   );
 }
 
-/** A column for an array field (strings, or { name } objects). */
-function multiValueColumn(key: string, label: string): Column {
-  const values = (r: Row): string[] => (Array.isArray(r[key]) ? listValues(r[key] as unknown[]) : []);
-  return {
-    key, label,
-    text: (r) => values(r).join(", ") || "—",
-    render: (r) => <MultiValueCell values={values(r)} />,
-  };
-}
-
 /** A list of people as "a, b": items may be { id, name } objects or plain strings. */
 function namesText(value: unknown): string {
   if (!Array.isArray(value) || value.length === 0) return "—";
@@ -420,16 +416,79 @@ function roleColumns(_rows: Row[], attrs: string[]): Column[] {
   ];
 }
 
-/** GET_IIQ_ALL_WORKGROUPS: only these fields; capabilities is multivalued, attribute keys become their own columns. */
-function workgroupColumns(_rows: Row[], attrs: string[]): Column[] {
+// ---------- Workgroup tab (catalog rows, drawn like the console's Catalog → Workgroups) ----------
+
+interface CatalogMember { principalId: string; displayName?: string; validApprover?: boolean; lifecycleStatus?: string }
+
+const asMembers = (v: unknown) => (Array.isArray(v) ? (v as CatalogMember[]) : []);
+const asNamed = (v: unknown) => (Array.isArray(v) ? (v as { name?: string }[]) : []);
+
+/** "A, B, C, D +3" — the first few names of a list. */
+function firstNames(v: unknown, max = 4): string {
+  const list = asNamed(v);
+  if (!list.length) return "—";
+  return `${list.slice(0, max).map((x) => x.name).join(", ")}${list.length > max ? ` +${list.length - max}` : ""}`;
+}
+
+function countAndNames(key: string, label: string): Column {
+  return {
+    key, label, wrap: true,
+    text: (r) => `${asNamed(r[key]).length} ${firstNames(r[key])}`,
+    render: (r) => (
+      <div className="min-w-[160px]">
+        <b className="text-gray-900">{asNamed(r[key]).length}</b>{" "}
+        <span className="text-xs text-gray-500">{firstNames(r[key])}</span>
+      </div>
+    ),
+  };
+}
+
+function catalogWorkgroupColumns(): Column[] {
   return [
-    { key: "name", label: "Name", text: (r) => cellText(r.name) },
-    statusColumn(),
-    { key: "owner_name", label: "Owner", text: (r) => cellText(r.owner_name) },
-    multiValueColumn("capabilities", "Capabilities"),
-    ...attributeColumns(attrs),
-    { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
-    { key: "modified_at", label: "Modified At", text: (r) => dateText(r.modified_at) },
+    {
+      key: "workgroupCode", label: "Workgroup", wrap: true,
+      text: (r) => `${cellText(r.workgroupCode)} ${cellText(r.displayName)}`,
+      render: (r) => (
+        <>
+          <div className="font-mono font-semibold text-gray-900 whitespace-nowrap">{cellText(r.workgroupCode)}</div>
+          {isPresent(r.displayName) && <div className="text-xs text-gray-500">{String(r.displayName)}</div>}
+        </>
+      ),
+    },
+    {
+      key: "approvers", label: "Approvers",
+      text: (r) => `${r.activeMembers ?? 0}/${r.memberCount ?? 0} active`,
+      render: (r) => {
+        const total = typeof r.memberCount === "number" ? r.memberCount : 0;
+        const active = typeof r.activeMembers === "number" ? r.activeMembers : 0;
+        if (total === 0) return <span className={BAD}>no members</span>;
+        if (r.invalidMembers) return <span className={WARN}>{active}/{total} active</span>;
+        return <span className={OK}>{active} active</span>;
+      },
+    },
+    {
+      key: "members", label: "Members", wrap: true,
+      text: (r) => asMembers(r.members).map((m) => m.displayName || m.principalId).join(", ") || "—",
+      render: (r) => {
+        const members = asMembers(r.members);
+        if (!members.length) return <span className="text-gray-400">—</span>;
+        return (
+          <div className="flex flex-wrap gap-1.5 min-w-[200px]">
+            {members.map((m) => (
+              <span key={m.principalId} title={m.principalId}
+                    className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs whitespace-nowrap">
+                {m.displayName || m.principalId.slice(0, 8)}
+                {!m.validApprover && m.lifecycleStatus && (
+                  <span className={m.lifecycleStatus === "TERMINATED" ? "text-red-700" : "text-amber-700"}>{m.lifecycleStatus}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
+    countAndNames("approves", "Approves"),
+    countAndNames("fallbackFor", "Fallback For"),
   ];
 }
 
