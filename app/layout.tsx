@@ -11,7 +11,8 @@ import RightSideBarHost from "@/components/RightSideBarHost";
 import LayoutContentShift from "@/components/LayoutContentShift";
 import { PageTransitionLoader } from "@/components/PageTransitionLoader";
 
-const inter = Inter({ subsets: ["latin"] });
+// Self-hosted at build time (no Google Fonts request at runtime); --font-inter is for CSS and inline styles.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 // Every page renders per request so its scripts carry that request's CSP nonce (middleware.ts);
 // a statically generated page would have no nonce and its scripts would be blocked.
@@ -28,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body className={inter.className}>
         <AuthProvider>
           <QueryProvider>
