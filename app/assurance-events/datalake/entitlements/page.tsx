@@ -20,11 +20,11 @@ import {
 } from "@/components/assurance-events/ui";
 import { COOKIE_NAMES, getCookie, refreshJWTToken, resolveTenantIdForHeader } from "@/lib/auth";
 import { getOriginalFetch } from "@/lib/authFetch";
+import { getBackendOrigin } from "@/lib/backendOrigin";
 import { ccRequest } from "@/lib/controls-api";
 import { SeverityBadge } from "@/components/assurance-events/definition-editor/fields";
 import { formatAbsolute } from "@/lib/assurance-format";
 
-const ENTITIES_ORIGIN = "https://preview.keyforge.ai";
 const DEFAULT_TENANT = "ACMECOM";
 const PAGE_SIZE = 100;
 
@@ -76,7 +76,7 @@ async function executeNamedQuery(query: string, limit: number, offset: number): 
   // Renew once and retry; if it is still rejected, show the error on the page.
   const send = () => {
     const jwt = getCookie(COOKIE_NAMES.JWT_TOKEN);
-    return getOriginalFetch()(`${ENTITIES_ORIGIN}/entities/api/v1/${encodeURIComponent(tenant)}/executeNamedQuery`, {
+    return getOriginalFetch()(`${getBackendOrigin()}/entities/api/v1/${encodeURIComponent(tenant)}/executeNamedQuery`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
       body: JSON.stringify({ query, parameters: [limit, offset] }),
