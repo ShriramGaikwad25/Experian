@@ -107,6 +107,38 @@ export function getAccessTokenFromRequest(request: NextRequest): string | null {
   }
 }
 
+/** Cookie KeyForge sets after an external (e.g. Oracle) SSO sign-in, holding the provider's access token. */
+export const OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE = "OAUTH_PROVIDER_ACCESSTOKEN";
+
+/**
+ * Access token our proxies send upstream. After a password sign-in: the accessToken cookie.
+ * After an external SSO sign-in (OAUTH_PROVIDER_ACCESSTOKEN present) accessToken holds the
+ * provider's RS256 token, which KeyForge services reject ("JWT validation failed ... RS256"),
+ * so the KeyForge jwtToken is sent instead; PROXY_SSO_TOKEN=provider sends the provider token.
+ */
+export function getProxyAccessToken(request: NextRequest): string | null {
+  const cookie = (name: string) => request.cookies.get(name)?.value?.trim() || null;
+  const accessToken = cookie(COOKIE_NAMES.ACCESS_TOKEN);
+  const sso = !!cookie(OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE) || isProviderSignedToken(accessToken);
+  if (!sso) return accessToken;
+  if ((process.env.PROXY_SSO_TOKEN ?? "").trim().toLowerCase() === "provider") {
+    return cookie(OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE) ?? accessToken;
+  }
+  return cookie(COOKIE_NAMES.JWT_TOKEN) ?? accessToken;
+}
+
+/** True for a JWT signed with a public-key algorithm (RS256, ES256, ...): an identity provider's token, not KeyForge's. */
+function isProviderSignedToken(token: string | null): boolean {
+  const part = token?.split(".")[0];
+  if (!part) return false;
+  try {
+    const header = JSON.parse(new TextDecoder().decode(base64UrlDecode(part))) as { alg?: unknown };
+    return typeof header.alg === "string" && /^(RS|PS|ES)\d+$/i.test(header.alg);
+  } catch {
+    return false;
+  }
+}
+
 export function withAuthHeader(
   headers: HeadersInit | undefined,
   jwtToken: string | null

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccessTokenFromRequest, getBackendOriginFromRequest, getJwtTokenFromRequest, getPageOriginFromRequest } from "@/lib/serverAuth";
+import { getBackendOriginFromRequest, getJwtTokenFromRequest, getPageOriginFromRequest, getProxyAccessToken } from "@/lib/serverAuth";
 import { isKeyforgeOrigin, KF_AUTH_HEADER, KF_UPSTREAM_HEADER, TOKEN_ISSUING_PATH } from "@/lib/kfProxy";
 
 // Token proxy: session tokens are HttpOnly cookies (see lib/kfProxy.ts).
@@ -46,7 +46,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   });
   // The caller's Authorization is only ever a placeholder: the token always comes from the cookie.
   const token = request.headers.get(KF_AUTH_HEADER)?.toLowerCase() === "access"
-    ? getAccessTokenFromRequest(request)
+    ? getProxyAccessToken(request)
     : getJwtTokenFromRequest(request);
   if (token) headers.set("authorization", `Bearer ${token}`);
 

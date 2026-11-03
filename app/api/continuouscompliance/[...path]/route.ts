@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccessTokenFromRequest } from "@/lib/serverAuth";
+import { getProxyAccessToken } from "@/lib/serverAuth";
 import { isTokenPlaceholder } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
@@ -30,7 +30,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   // A token placeholder (lib/kfProxy.ts) is not a token: use the cookie instead.
   if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
   if (!headers.has("authorization")) {
-    const token = getAccessTokenFromRequest(request);
+    const token = getProxyAccessToken(request);
     if (token) headers.set("authorization", `Bearer ${token}`);
   }
 
