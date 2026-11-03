@@ -14,7 +14,7 @@ import { BannerBar, SeverityBadge, StateBadge, type Banner } from "@/components/
 
 // =====================================================================
 // Control Library — the control catalog, on the same live APIs as the
-// Continuous Compliance Console's Controls page (graph.keyforge.ai/console
+// Continuous Compliance Console's Controls page (/console
 // #/controls, see lib/controls-api.ts):
 //   GET  /compliance/detection-families
 //   GET  /compliance/control-categories

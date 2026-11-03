@@ -2,7 +2,7 @@
 // Continuous Assurance — Lookup library (live API).
 //
 // Same API as the Continuous Compliance Console's Lookup library
-// (graph.keyforge.ai/console#/lookup-tables), through ISPM's proxy
+// (/console#/lookup-tables), through ISPM's proxy
 // (lib/controls-api.ts → /api/continuouscompliance):
 //   GET    /compliance/lookup-tables?state=&q=
 //   GET    /compliance/lookup-tables/{code}?version=

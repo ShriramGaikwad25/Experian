@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------
-// Lookups — the console's Lookups tab (graph.keyforge.ai/console#/definitions/{id}):
+// Lookups — the console's Lookups tab (/console#/definitions/{id}):
 // lookups bound from the Lookup Library (GET /compliance/lookup-tables) into
 // definition.lookups.items.
 // ---------------------------------------------------------------------

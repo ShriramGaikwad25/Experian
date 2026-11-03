@@ -2,7 +2,7 @@
 
 // =====================================================================
 // Control — the Continuous Compliance Console's control page
-// (graph.keyforge.ai/console#/controls/{code}?version=) on the same API,
+// (/console#/controls/{code}?version=) on the same API,
 // laid out like ISPM's gateway pages. Tabs:
 //   Definition   GET  /compliance/controls/{code}?version=   (editable for a tenant DRAFT: PUT)
 //   Versions     GET  /compliance/controls/{code}/versions

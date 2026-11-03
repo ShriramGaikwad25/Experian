@@ -2,7 +2,7 @@
 
 // =====================================================================
 // Review form — the Continuous Compliance Console's form page
-// (graph.keyforge.ai/console#/forms/{code}?version=) on the same API, laid
+// (/console#/forms/{code}?version=) on the same API, laid
 // out like ISPM's gateway pages. The form comes from the library response
 // (GET /compliance/review-forms). Tabs:
 //   Definition          (the form and its fields; editable for a tenant DRAFT: PUT /compliance/review-forms/{code})

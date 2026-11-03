@@ -94,7 +94,7 @@ async function executeNamedQuery(query: string, limit: number, offset: number): 
 }
 
 /**
- * Entitlement tab: GET graph.keyforge.ai/continuouscompliance/api/v1/{tenant}/catalog/entitlements
+ * Entitlement tab: GET <backend>/continuouscompliance/api/v1/{tenant}/catalog/entitlements
  * → { items, summary }. It has no paging: every entitlement comes back at once.
  */
 async function catalogEntitlements(): Promise<Row[]> {

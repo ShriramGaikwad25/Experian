@@ -4,7 +4,7 @@
 //
 // Action library lists the IGA UI's agent tasks (lib/agent-task-library.ts)
 // with the event definitions that route findings to each task.
-// CEL endpoints match the deployed console (graph.keyforge.ai/cc):
+// CEL endpoints match the deployed console (/cc):
 //   GET /assurance/agents                      (domains for the CEL picker)
 //   GET /assurance/agents/{code}/cel-reference
 // Served from sample data while USE_MOCK is true, like the rest of the

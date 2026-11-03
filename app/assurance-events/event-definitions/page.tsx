@@ -18,7 +18,7 @@ import { DEFINITIONS_BASE } from "@/components/assurance-events/definition-edito
 // =====================================================================
 // Response policies / event definitions — one policy per kind of finding.
 // The Continuous Compliance Console's Definitions page
-// (graph.keyforge.ai/console#/definitions) on the same API:
+// (/console#/definitions) on the same API:
 //   GET  /compliance/definitions/summary?state=&eventTypeCode=&q=
 //   POST /compliance/definitions                 (create, DRAFT)
 //   POST /compliance/definitions/{id}/versions   (new version)

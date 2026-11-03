@@ -2,7 +2,7 @@
 
 // =====================================================================
 // SLA profile — the Continuous Compliance Console's SLA profile page
-// (graph.keyforge.ai/console#/sla-profiles/{code}?version=) on the same API,
+// (/console#/sla-profiles/{code}?version=) on the same API,
 // laid out like ISPM's gateway pages. "new" creates one (POST, DRAFT).
 //   Definition   identity, deadline, escalation chain, applies-when
 //                (editable for a new or tenant DRAFT profile: POST / PUT),

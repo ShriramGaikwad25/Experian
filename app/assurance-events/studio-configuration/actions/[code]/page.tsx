@@ -2,7 +2,7 @@
 
 // =====================================================================
 // Action — the Continuous Compliance Console's action page
-// (graph.keyforge.ai/console#/actions/{code}?version=) on the same API,
+// (/console#/actions/{code}?version=) on the same API,
 // laid out like ISPM's gateway pages. Tabs:
 //   Definition   GET  /compliance/action-types/{code}?version=
 //   Where Used   GET  /compliance/action-types/{code}/usage

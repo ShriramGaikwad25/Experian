@@ -3,7 +3,7 @@
 // Executors (Studio Configuration → Executors tab) — who runs an action:
 // in-process connectors, REST adapters speaking the action protocol, or AI
 // agents that propose plans. The Continuous Compliance Console's Executors
-// page (graph.keyforge.ai/console#/executors) on the same API
+// page (/console#/executors) on the same API
 // (GET /compliance/executors), laid out like ISPM's gateway registry pages.
 // "Register executor" opens the registration form (executors/new).
 

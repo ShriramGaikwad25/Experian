@@ -2,8 +2,8 @@
 // Continuous Compliance — control library API.
 //
 // The same calls the Continuous Compliance Console's Controls page makes
-// (graph.keyforge.ai/console#/controls), against
-//   https://graph.keyforge.ai/continuouscompliance/api/v1/{tenant}
+// (/console#/controls), against
+//   <backend>/continuouscompliance/api/v1/{tenant}
 // through ISPM's own proxy (/api/continuouscompliance, see
 // app/api/continuouscompliance) because the service rejects cross-origin
 // browser calls. The signed-in user's ACCESS token is sent as the bearer
@@ -187,7 +187,7 @@ export const Controls = {
     }),
   clone: (code: string, body: { code: string; name?: string }) =>
     ccRequest<Control>("POST", `${controlPath(code)}/clone`, { body }),
-  // The console's control page (graph.keyforge.ai/console#/controls/{code}):
+  // The console's control page (/console#/controls/{code}):
   get: (code: string, version?: number) =>
     ccRequest<Control>("GET", controlPath(code), { query: { version: version ? String(version) : undefined } }),
   versions: (code: string) => ccRequest<Control[]>("GET", `${controlPath(code)}/versions`),

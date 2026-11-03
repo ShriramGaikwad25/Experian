@@ -2,7 +2,7 @@
 // Continuous Assurance — executors (who carries out an action).
 //
 // Live data from the Continuous Compliance Console's API
-// (graph.keyforge.ai/console#/executors), through ISPM's proxy:
+// (/console#/executors), through ISPM's proxy:
 //   GET  /compliance/executors              POST /compliance/executors
 //   GET  /compliance/executors/{code}       PUT  /compliance/executors/{code}
 //   GET  /compliance/executors/{code}/diagnose
@@ -109,7 +109,7 @@ export const NEW_EXECUTOR: ExecutorRequest = {
 };
 
 // Same API as the Continuous Compliance Console's Executors page
-// (graph.keyforge.ai/console#/executors), through ISPM's proxy.
+// (/console#/executors), through ISPM's proxy.
 export const Executors = {
   list: async (): Promise<ExecutorDetail[]> => {
     const rows = await ccRequest<ApiExecutor[]>("GET", "/compliance/executors");

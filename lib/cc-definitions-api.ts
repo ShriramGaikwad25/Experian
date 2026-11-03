@@ -70,7 +70,7 @@ export const CcDefinitions = {
     ccRequest<EventDefinition>("GET", `/compliance/definitions/${encodeURIComponent(id)}`),
 };
 
-// ---------- Console Definitions page (graph.keyforge.ai/console#/definitions) ----------
+// ---------- Console Definitions page (/console#/definitions) ----------
 
 /** A row of GET /compliance/definitions/summary — each policy part pre-rendered as text. */
 export interface CcDefinitionSummary {

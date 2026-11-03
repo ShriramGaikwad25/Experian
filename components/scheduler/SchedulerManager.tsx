@@ -99,7 +99,7 @@ const EMPTY_NEW_JOB_DATA = {
 
 /**
  * The scheduler. `apiOrigin` is the host of the kfscheduler API: the backend origin
- * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai for
+ * for Settings → Gateway → Scheduler and for
  * Assurance Events → Scheduler, which also sends the access token instead of the JWT
  * (`useAccessToken`) and logs out when it has expired. Everything else is the same.
  * `jobFilter` limits the job list to jobs whose name or group carries it as a code (see jobMatchesCode),

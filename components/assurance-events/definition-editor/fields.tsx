@@ -1,7 +1,7 @@
 "use client";
 
 // Building blocks of the definition editor, ported from the deployed
-// Continuous Assurance console (graph.keyforge.ai/cc): section card, JSON
+// Continuous Assurance console (/cc): section card, JSON
 // field, escalation chain editor, JSON viewer, key/value list,
 // state badge and banner.
 

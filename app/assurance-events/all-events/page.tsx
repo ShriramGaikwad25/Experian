@@ -2,7 +2,7 @@
 
 // =====================================================================
 // All Events — two tabs, from the Continuous Compliance Console
-// (graph.keyforge.ai/console), on the same live API:
+// (/console), on the same live API:
 //   Events        the console's Events page (#/events):
 //                 GET /compliance/events?status=…&severity=…&definitionId=…
 //                     &discoveredAfter/Before=…&closedAfter/Before=…&dueBefore=…&slaMet=…&slaBreached=…

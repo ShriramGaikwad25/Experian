@@ -3,7 +3,7 @@ import { getBackendOriginFromRequest, getProxyAccessToken } from "@/lib/serverAu
 import { isTokenPlaceholder } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
-// Continuous Compliance Console (graph.keyforge.ai/console). The browser
+// Continuous Compliance Console (/console). The browser
 // calls /api/continuouscompliance/{tenant}/compliance/... on our own origin
 // and this handler forwards to the service, so its CORS policy (which
 // rejects other origins) never applies. See lib/controls-api.ts.

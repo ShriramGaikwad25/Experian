@@ -2,7 +2,7 @@
 
 // =====================================================================
 // SLA — the Continuous Compliance Console's SLA profile library
-// (graph.keyforge.ai/console#/sla-profiles) on the same API
+// (/console#/sla-profiles) on the same API
 // (GET /compliance/sla-profiles, lib/cc-sla-profiles-api.ts), laid out like
 // ISPM's gateway registry pages: stat cards, filters, table, clone dialog.
 // A row opens the profile page; "New SLA Profile" opens it as "new".

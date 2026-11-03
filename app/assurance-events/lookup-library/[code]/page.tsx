@@ -2,7 +2,7 @@
 
 // =====================================================================
 // Lookup — the Continuous Compliance Console's lookup page
-// (graph.keyforge.ai/console#/lookup-tables/{code}?version=) on the same API,
+// (/console#/lookup-tables/{code}?version=) on the same API,
 // laid out like the SLA profile page. "new" creates one (POST, DRAFT).
 //   Definition   identity, source, columns and match (editable for a new
 //                or DRAFT lookup: POST / PUT)

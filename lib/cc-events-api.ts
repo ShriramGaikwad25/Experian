@@ -2,7 +2,7 @@
 // Continuous Compliance — events (live API).
 //
 // The same calls as the Continuous Compliance Console's Events page
-// (graph.keyforge.ai/console#/events), through ISPM's proxy
+// (/console#/events), through ISPM's proxy
 // (lib/controls-api.ts → /api/continuouscompliance):
 //   GET /compliance/events?status=…&status=…&severity=…&eventTypeCodes=…&page=&pageSize=
 //       → { content: CcEvent[], totalElements }

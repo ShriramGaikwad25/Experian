@@ -2,7 +2,7 @@
 // Continuous Assurance — action library (action types).
 //
 // Same API as the Continuous Compliance Console's Action library page
-// (graph.keyforge.ai/console#/actions), through ISPM's proxy
+// (/console#/actions), through ISPM's proxy
 // (lib/controls-api.ts → /api/continuouscompliance):
 //   GET  /compliance/action-types?state=&category=&q=
 //   GET  /compliance/action-types/{code}?version=

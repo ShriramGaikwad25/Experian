@@ -6,7 +6,7 @@
 // no ISPM JWT and no ISPM token refresh / logout handling.
 //
 // Mirrors the Continuous Assurance app's client as-is: the service at
-// https://graph.keyforge.ai/cc/api/v1/compliance, reached through the
+// <backend>/cc/api/v1/compliance, reached through the
 // same-origin proxy app/api/assurance/[...path] (the service does not allow
 // browser CORS from ISPM), the same bearer token read
 // from localStorage under 'kf.cc.token', and an Idempotency-Key on every write

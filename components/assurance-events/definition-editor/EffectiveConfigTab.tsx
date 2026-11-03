@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------
 // Effective config — the console's Effective config tab
-// (graph.keyforge.ai/console#/definitions/{id}): the configuration the
+// (/console#/definitions/{id}): the configuration the
 // service actually runs for this definition, every default and link
 // resolved (GET /compliance/definitions/{id}/effective-config). Read only;
 // it reflects the saved definition, not unsaved edits.

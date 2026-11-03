@@ -59,7 +59,7 @@ function StudioConfigurationPage() {
 
 /* ================================================================ Action library */
 
-// The Continuous Compliance Console's Action library (graph.keyforge.ai/console
+// The Continuous Compliance Console's Action library (/console
 // #/actions) on the same API — GET /compliance/action-types — laid out like
 // the IGA UI's Agent Task Library: stat cards, filter bar, tables (one per
 // category). Opening an action shows its page; Clone opens in the sidebar.

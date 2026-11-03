@@ -2,7 +2,7 @@
 
 // =====================================================================
 // Lookup Library — the Continuous Compliance Console's Lookup library
-// (graph.keyforge.ai/console#/lookup-tables) on the same API
+// (/console#/lookup-tables) on the same API
 // (GET /compliance/lookup-tables, lib/cc-lookup-tables-api.ts), laid out like
 // the SLA page: stat cards, filters, table, clone dialog.
 // A row opens the lookup page; "New Lookup" opens it as "new".

@@ -1,7 +1,7 @@
 "use client";
 
 // Definition editor — ported from the deployed Continuous Assurance console
-// (graph.keyforge.ai/cc/definitions/:id), with every field editable in any
+// (/cc/definitions/:id), with every field editable in any
 // state:
 //   - DRAFT: "Save draft" saves in place; "Activate" saves pending edits,
 //     then activates (the server deprecates the other versions).
@@ -63,7 +63,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   };
   // GET {baseUrl}/{tenant}/compliance/definitions/{id}
   const query = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id) });
-  // GET graph.keyforge.ai/kfscheduler/api/v1/{tenant}/jobs, only for ACTIVE definitions.
+  // GET <backend>/kfscheduler/api/v1/{tenant}/jobs, only for ACTIVE definitions.
   const schedulerJobs = useQuery({
     queryKey: ASSURANCE_SCHEDULER_JOBS_KEY,
     queryFn: listAssuranceSchedulerJobs,

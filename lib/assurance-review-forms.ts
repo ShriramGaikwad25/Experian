@@ -6,7 +6,7 @@
 // recorded, the next lifecycle step).
 //
 // Same API as the Continuous Compliance Console's Review forms page
-// (graph.keyforge.ai/console#/forms), through ISPM's proxy
+// (/console#/forms), through ISPM's proxy
 // (lib/controls-api.ts → /api/continuouscompliance):
 //   GET  /compliance/review-forms                     library (full forms)
 //   GET  /compliance/review-forms/{code}/versions     every version of a code

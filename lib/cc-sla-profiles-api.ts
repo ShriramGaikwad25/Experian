@@ -2,7 +2,7 @@
 // Continuous Assurance — SLA profiles (live API).
 //
 // Same API as the Continuous Compliance Console's SLA profiles page
-// (graph.keyforge.ai/console#/sla-profiles), through ISPM's proxy
+// (/console#/sla-profiles), through ISPM's proxy
 // (lib/controls-api.ts → /api/continuouscompliance):
 //   GET  /compliance/sla-profiles?state=&q=
 //   GET  /compliance/sla-profiles/{code}?version=

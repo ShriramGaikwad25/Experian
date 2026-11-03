@@ -1,7 +1,7 @@
 "use client";
 
 // The definition editor's tabs, ported from the deployed Continuous
-// Assurance console (graph.keyforge.ai/cc/definitions/:id): General (with
+// Assurance console (/cc/definitions/:id): General (with
 // the SLA chosen from a dropdown), Detection, Governance policy, SLA,
 // Scope, Notifications. SlaTab and ActionBindingsTab are kept in the codebase but
 // are not shown in the editor's tab bar.
@@ -159,7 +159,7 @@ function SlaSection({ dto, patch, ro }: Pick<TabProps, "dto" | "patch" | "ro">) 
 // Detection
 // ---------------------------------------------------------------------
 
-// The console's Detector tab (graph.keyforge.ai/console#/definitions/{id}):
+// The console's Detector tab (/console#/definitions/{id}):
 // the definition's detector — a family and the library controls linked to it
 // (every control must hold) — plus the effective condition the service
 // resolves on every read. Controls come from the Control Library
@@ -721,7 +721,7 @@ function RuleBuilder({ existingIds, library, onClose, onAdd }: {
 }
 
 // ---------------------------------------------------------------------
-// SLA — the console's SLA tab (graph.keyforge.ai/console#/definitions/{id}):
+// SLA — the console's SLA tab (/console#/definitions/{id}):
 // SLA profiles linked from the SLA library (GET /compliance/sla-profiles),
 // the definition's own fallback SLA, and the SLA the service resolves.
 // ---------------------------------------------------------------------

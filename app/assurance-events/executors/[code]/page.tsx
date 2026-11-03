@@ -1,7 +1,7 @@
 "use client";
 
 // Executor — the Continuous Compliance Console's executor page
-// (graph.keyforge.ai/console#/executors/{code}) on the same API, laid out
+// (/console#/executors/{code}) on the same API, laid out
 // like ISPM's gateway pages. "new" registers one (POST /compliance/executors).
 // DRAFT executors are editable (Save / Activate); ACTIVE ones can be paused,
 // resumed, cut a new version or deprecated; any executor can be dry-run

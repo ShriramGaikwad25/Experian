@@ -1,7 +1,7 @@
 "use client";
 
 // Review forms — the Continuous Compliance Console's review form library
-// (graph.keyforge.ai/console#/forms) on the same API, laid out like ISPM's
+// (/console#/forms) on the same API, laid out like ISPM's
 // gateway registry pages. GET /compliance/review-forms; Clone posts
 // /compliance/review-forms/{code}/clone. Opening a form shows its page.
 

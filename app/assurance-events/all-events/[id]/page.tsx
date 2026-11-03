@@ -2,7 +2,7 @@
 
 // =====================================================================
 // Event detail — the Continuous Compliance Console's event page
-// (graph.keyforge.ai/console#/events/{id}) on the same API, laid out like
+// (/console#/events/{id}) on the same API, laid out like
 // ISPM's gateway pages. Tabs:
 //   Summary      GET /compliance/events/{id}
 //   SLA          (same response — the pinned SLA)
