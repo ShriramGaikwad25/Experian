@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProxyAccessToken } from "@/lib/serverAuth";
+import { getBackendOriginFromRequest, getProxyAccessToken } from "@/lib/serverAuth";
 import { isTokenPlaceholder } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Assurance (compliance) service. The
 // browser calls /api/assurance/* on our own origin and this handler forwards
-// to graph.keyforge.ai, so the service's CORS policy never applies.
+// to the backend (the deployment's own host), so the service's CORS policy never applies.
 // See lib/assurance-api.ts for the client side.
 
-const ASSURANCE_UPSTREAM_BASE =
-  process.env.ASSURANCE_UPSTREAM_BASE_URL || "https://graph.keyforge.ai/cc/api/v1/compliance";
+/** ASSURANCE_UPSTREAM_BASE_URL when set, otherwise the deployment's own backend host. */
+const upstreamBase = (request: NextRequest) =>
+  process.env.ASSURANCE_UPSTREAM_BASE_URL || `${getBackendOriginFromRequest(request)}/cc/api/v1/compliance`;
 
 /** Request headers passed through to the upstream service. */
 const FORWARDED_HEADERS = ["authorization", "x-tenant-id", "idempotency-key", "content-type", "accept"];
@@ -16,7 +17,7 @@ const FORWARDED_HEADERS = ["authorization", "x-tenant-id", "idempotency-key", "c
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: pathSegments } = await params;
   const path = (pathSegments ?? []).map(encodeURIComponent).join("/");
-  const url = `${ASSURANCE_UPSTREAM_BASE}/${path}${request.nextUrl.search}`;
+  const url = `${upstreamBase(request)}/${path}${request.nextUrl.search}`;
 
   const headers = new Headers();
   for (const name of FORWARDED_HEADERS) {

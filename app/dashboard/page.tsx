@@ -26,10 +26,10 @@ import { SlaProfiles, humanDuration } from '@/lib/cc-sla-profiles-api';
 import { Actions } from '@/lib/cc-actions-api';
 import { Executors } from '@/lib/assurance-executors';
 import { listEmailTemplates } from '@/lib/assurance-notification-bindings';
+import { getBackendOrigin } from '@/lib/backendOrigin';
 
 const PREVIEW_ROWS = 5;
 const OPEN_EVENT_STATUSES = ['OPEN', 'IN_REVIEW', 'REMEDIATING', 'MITIGATING'];
-const SCHEDULER_ORIGIN = 'https://graph.keyforge.ai';
 
 /** One line in a widget: title, a muted detail line and a badge on the right. */
 interface PreviewRow { key: string; title: ReactNode; detail?: ReactNode; badge?: ReactNode }
@@ -43,7 +43,7 @@ const countWhere = <T,>(rows: T[] | undefined, pred: (r: T) => boolean) => rows?
 /** Same request as the Scheduler page (SchedulerManager.fetchJobs): "group:job" strings. */
 async function fetchSchedulerJobs(): Promise<Array<{ id: string; name: string; groupName: string }>> {
   const data = await assuranceRequest<string[] & { error?: string; message?: string }>(
-    `${SCHEDULER_ORIGIN}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs`,
+    `${getBackendOrigin()}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs`,
   );
   if (data.error) throw new Error(data.message || data.error);
   return data.map((s) => {

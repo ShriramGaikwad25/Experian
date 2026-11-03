@@ -29,7 +29,7 @@ import { LookupsTab } from "./LookupsTab";
 import { EffectiveConfigTab } from "./EffectiveConfigTab";
 import SchedulerManager from "@/components/scheduler/SchedulerManager";
 import {
-  ASSURANCE_SCHEDULER_JOBS_KEY, ASSURANCE_SCHEDULER_ORIGIN, jobMatchesCode, listAssuranceSchedulerJobs,
+  ASSURANCE_SCHEDULER_JOBS_KEY, jobMatchesCode, listAssuranceSchedulerJobs,
 } from "@/lib/assurance-scheduler-jobs";
 
 export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
@@ -215,7 +215,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
           {activeTab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
           {activeTab === "scheduler" && hasSchedulerTab && (
             <div className="h-[calc(100vh-14rem)] min-h-[560px] overflow-hidden rounded-lg border border-gray-200">
-              <SchedulerManager apiOrigin={ASSURANCE_SCHEDULER_ORIGIN} useAccessToken jobFilter={dto.code} embedded />
+              <SchedulerManager useAccessToken jobFilter={dto.code} embedded />
             </div>
           )}
         </div>

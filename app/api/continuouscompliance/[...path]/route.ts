@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProxyAccessToken } from "@/lib/serverAuth";
+import { getBackendOriginFromRequest, getProxyAccessToken } from "@/lib/serverAuth";
 import { isTokenPlaceholder } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
@@ -11,8 +11,9 @@ import { isTokenPlaceholder } from "@/lib/kfProxy";
 // Assurance Events send the user's ACCESS token in Authorization; when the
 // browser did not send one, the signed-in user's access-token cookie is used.
 
-const UPSTREAM_BASE =
-  process.env.CONTINUOUS_COMPLIANCE_UPSTREAM_BASE_URL || "https://graph.keyforge.ai/continuouscompliance/api/v1";
+/** CONTINUOUS_COMPLIANCE_UPSTREAM_BASE_URL when set, otherwise the deployment's own backend host. */
+const upstreamBase = (request: NextRequest) =>
+  process.env.CONTINUOUS_COMPLIANCE_UPSTREAM_BASE_URL || `${getBackendOriginFromRequest(request)}/continuouscompliance/api/v1`;
 
 /** Request headers passed through to the upstream service. */
 const FORWARDED_HEADERS = ["authorization", "x-tenant-id", "x-request-id", "content-type", "accept"];
@@ -20,7 +21,7 @@ const FORWARDED_HEADERS = ["authorization", "x-tenant-id", "x-request-id", "cont
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: pathSegments } = await params;
   const path = (pathSegments ?? []).map(encodeURIComponent).join("/");
-  const url = `${UPSTREAM_BASE}/${path}${request.nextUrl.search}`;
+  const url = `${upstreamBase(request)}/${path}${request.nextUrl.search}`;
 
   const headers = new Headers();
   for (const name of FORWARDED_HEADERS) {

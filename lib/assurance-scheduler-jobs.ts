@@ -1,4 +1,4 @@
-// Jobs on the Assurance Events scheduler (graph.keyforge.ai kfscheduler API),
+// Jobs on the Assurance Events scheduler (the backend's kfscheduler API),
 // and which of them belong to an event definition. The definition editor shows
 // its Scheduler tab on an ACTIVE definition when at least one job carries the
 // definition's code (e.g. REP010) in its name or group.
@@ -6,14 +6,14 @@
 import { resolveTenantIdForHeader } from "@/lib/auth";
 import { assuranceRequest } from "@/lib/assurance-auth";
 
-export const ASSURANCE_SCHEDULER_ORIGIN = "https://graph.keyforge.ai";
+import { getBackendOrigin } from "@/lib/backendOrigin";
 
 export const ASSURANCE_SCHEDULER_JOBS_KEY = ["assurance-scheduler", "jobs"] as const;
 
 /** The tenant's jobs as "group:job" strings, as the scheduler returns them. */
 export async function listAssuranceSchedulerJobs(): Promise<string[]> {
   const data = await assuranceRequest<string[] | { error?: string; message?: string }>(
-    `${ASSURANCE_SCHEDULER_ORIGIN}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs`,
+    `${getBackendOrigin()}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs`,
   );
   if (!Array.isArray(data)) throw new Error(data?.message || data?.error || "Unexpected scheduler response");
   return data;
