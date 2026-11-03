@@ -555,7 +555,13 @@ export function shouldRedirectToOAuthProvider(oauthUrl: string | null): boolean 
 
   try {
     const target = new URL(oauthUrl, window.location.href);
-    if (target.origin === window.location.origin) {
+    // A self-hosted backend shares the UI's origin (its OAuthRequestURL is e.g.
+    // https://<host>/RequestJWTToken/...): only a URL back into this app (/kfidp/*) would loop.
+    const basePath = withBasePath('/');
+    if (
+      target.origin === window.location.origin &&
+      (target.pathname === basePath || target.pathname.startsWith(`${basePath}/`))
+    ) {
       return false;
     }
   } catch {
