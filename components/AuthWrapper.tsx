@@ -56,7 +56,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
       router.push(getTenantLoginPath());
     } else if (isAuthenticated && isTenantAuthPath(pathname ?? '')) {
       setIsRedirecting(true);
-      router.push('/');
+      router.push('/dashboard');
     } else {
       setIsRedirecting(false);
     }
@@ -68,7 +68,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     isAuthenticated && !isPublicAuthRoute && !!roleAccess && !canAccessPath(pathname ?? '', roleAccess);
 
   useEffect(() => {
-    if (isRoleBlocked) router.replace('/');
+    if (isRoleBlocked) router.replace('/dashboard');
   }, [isRoleBlocked, router]);
 
   if (onLoggedOutPage) {
@@ -98,6 +98,11 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const isAppInventoryRoute =
+    typeof pathname === "string" && pathname.startsWith("/settings/app-inventory");
+
+  const mainPadClass = isAppInventoryRoute ? "py-3 px-3" : "p-6";
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -108,7 +113,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
           marginLeft: isSidebarVisible ? sidebarWidthPx : 0,
         }}
       >
-        <main className={`min-h-0 min-w-0 flex-1 overflow-auto bg-gray-100 p-6`}>
+        <main className={`min-h-0 min-w-0 flex-1 overflow-auto bg-gray-100 ${mainPadClass}`}>
           {children}
         </main>
       </div>

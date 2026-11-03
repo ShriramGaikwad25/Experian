@@ -28,7 +28,7 @@ export interface NavItem {
 export const navLinks: NavItem[] = [
   {
     name: "Home",
-    href: "/",
+    href: "/dashboard",
     icon: House,
   },
   {

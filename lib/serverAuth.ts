@@ -53,6 +53,20 @@ export async function checkJwt(token: string | null | undefined): Promise<JwtChe
 }
 
 /**
+ * The payload claims of a session jwtToken, for the page (it cannot read the HttpOnly cookie).
+ * Null unless checkJwt accepts the token; an expired one still yields its claims.
+ */
+export async function verifiedJwtClaims(token: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (!token || (await checkJwt(token)) === "invalid") return null;
+  try {
+    const claims = JSON.parse(new TextDecoder().decode(base64UrlDecode(token.split(".")[1]))) as unknown;
+    return claims && typeof claims === "object" && !Array.isArray(claims) ? (claims as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The access token may be KeyForge's JWT or, after an external SSO sign-in, a provider token in
  * another format, so only its expiry is checked, and only when it decodes as a JWT.
  */
@@ -64,22 +78,6 @@ export function isAccessTokenExpired(token: string): boolean {
     return typeof payload.exp === "number" && payload.exp * 1000 <= Date.now();
   } catch {
     return false;
-  }
-}
-
-/**
- * The JWT's payload (the signed-in user's own claims: userid, adminRoles, tenant id, ...), or null.
- * Decoded on the server because the token is an HttpOnly cookie page code cannot read; callers
- * check the token with checkJwt first.
- */
-export function decodeJwtClaims(token: string | null | undefined): Record<string, unknown> | null {
-  const part = token?.split(".")[1];
-  if (!part) return null;
-  try {
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(part))) as unknown;
-    return payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
-  } catch {
-    return null;
   }
 }
 
@@ -107,31 +105,6 @@ export function getAccessTokenFromRequest(request: NextRequest): string | null {
   } catch {
     return null;
   }
-}
-
-/** Cookie KeyForge sets after an external (e.g. Oracle) SSO sign-in, holding the provider's access token. */
-export const OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE = "OAUTH_PROVIDER_ACCESSTOKEN";
-
-/**
- * Token our proxies forward when the browser sent no Authorization. Returns the cookie used.
- * - Password sign-in: the accessToken cookie.
- * - External SSO sign-in (OAUTH_PROVIDER_ACCESSTOKEN present): the KeyForge jwtToken by default,
- *   because the Continuous Compliance service cannot verify the provider's (Oracle) token yet;
- *   PROXY_SSO_TOKEN=provider sends the provider token instead.
- */
-export function getProxyAccessToken(request: NextRequest): { token: string; cookie: string } | null {
-  const sso = !!request.cookies.get(OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE)?.value;
-  const sendProvider = (process.env.PROXY_SSO_TOKEN ?? "jwt").trim().toLowerCase() === "provider";
-  const order = !sso
-    ? [COOKIE_NAMES.ACCESS_TOKEN]
-    : sendProvider
-      ? [OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE, COOKIE_NAMES.ACCESS_TOKEN]
-      : [COOKIE_NAMES.JWT_TOKEN, OAUTH_PROVIDER_ACCESS_TOKEN_COOKIE, COOKIE_NAMES.ACCESS_TOKEN];
-  for (const cookie of order) {
-    const token = request.cookies.get(cookie)?.value?.trim();
-    if (token) return { token, cookie };
-  }
-  return null;
 }
 
 export function withAuthHeader(

@@ -99,7 +99,7 @@ const HeaderContent = () => {
         {/* Logo and Brand */}
         <div className="flex items-center gap-3 mr-8">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/dashboard')}
             className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
             aria-label="Navigate to home"
           >

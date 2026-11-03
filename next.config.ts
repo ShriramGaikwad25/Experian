@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/", destination: BASE_PATH, basePath: false, permanent: false },
+      // The home page lives at /kfidp/dashboard: /kfidp (e.g. after sign-in) lands there
+      { source: "/", destination: "/dashboard", permanent: false },
     ];
   },
   // All images are served from /public; no remote hosts are allowed through the optimizer.

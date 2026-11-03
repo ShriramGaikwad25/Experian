@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getUserAdminRoles, onSessionClaimsChange } from "@/lib/auth";
+import { getUserAdminRoles, subscribeSessionClaims } from "@/lib/auth";
 import type { NavItem } from "@/components/Navi";
 
 /**
@@ -46,13 +46,13 @@ export function useRoleAccess(): RoleAccess | null {
   const [access, setAccess] = useState<RoleAccess | null>(null);
   useEffect(() => {
     setAccess(readRoleAccess());
-    return onSessionClaimsChange(() => setAccess(readRoleAccess()));
+    return subscribeSessionClaims(() => setAccess(readRoleAccess()));
   }, []);
   return access;
 }
 
 export function canAccessPath(pathname: string, access: RoleAccess): boolean {
-  if (access.isDomainAdmin || pathname === "/") return true;
+  if (access.isDomainAdmin) return true;
   return HELP_DESK_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 

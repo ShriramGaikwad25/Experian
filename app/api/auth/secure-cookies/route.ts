@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   );
   for (const name of [...ACCESS_TOKEN_ALIASES, ...JWT_TOKEN_ALIASES]) {
     if (name !== COOKIE_NAMES.ACCESS_TOKEN && name !== COOKIE_NAMES.JWT_TOKEN && request.cookies.has(name)) {
-      expireCookie(response, request, name);
+      expireCookie(response, name);
     }
   }
   setTokenCookies(response, request, { accessToken, jwtToken });

@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COOKIE_NAMES } from '@/lib/auth';
-import { decodeJwtClaims } from '@/lib/serverAuth';
 import { mintJwt, setTokenCookies, tenantFromRequest } from '@/lib/authSession';
+import { getAccessTokenFromRequest, isAccessTokenExpired, verifiedJwtClaims } from '@/lib/serverAuth';
 
 /**
  * Issues a fresh JWT from the session's access token (both HttpOnly cookies) and stores it as the
  * jwtToken cookie. The response carries no token, only the new JWT's claims.
  */
 export async function POST(request: NextRequest) {
-  const accessToken = request.cookies.get(COOKIE_NAMES.ACCESS_TOKEN)?.value?.trim();
+  const accessToken = getAccessTokenFromRequest(request)?.trim();
   const tenant = tenantFromRequest(request);
-  if (!accessToken || !tenant) {
+  if (!accessToken || isAccessTokenExpired(accessToken) || !tenant) {
     return NextResponse.json({ ok: false, message: 'No session' }, { status: 401 });
   }
   try {
     const jwtToken = await mintJwt(request, accessToken, tenant);
     const response = NextResponse.json(
-      { ok: true, claims: decodeJwtClaims(jwtToken) },
+      { ok: true, claims: await verifiedJwtClaims(jwtToken) },
       { headers: { 'Cache-Control': 'no-store, private' } }
     );
     setTokenCookies(response, request, { jwtToken });

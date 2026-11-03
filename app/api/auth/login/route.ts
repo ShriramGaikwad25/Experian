@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBackendOriginFromRequest, decodeJwtClaims } from '@/lib/serverAuth';
 import { mintJwt, setTokenCookies } from '@/lib/authSession';
+import { getBackendOriginFromRequest, verifiedJwtClaims } from '@/lib/serverAuth';
 
 /**
  * Password sign-in. Exchanges the credentials for an access token and a JWT on the server and
- * stores both as HttpOnly cookies; the response carries no token, only the user's ids and the
- * JWT's claims (roles, tenant), which page code can no longer decode itself.
+ * stores both as HttpOnly cookies; the response carries no token, only the user's id and the
+ * JWT's claims.
  */
 export async function POST(request: NextRequest) {
   let body: { userid?: string; password?: string; tenantId?: string };
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   }
   const userid = body?.userid?.trim();
   const tenantId = body?.tenantId?.trim();
-  if (!userid || !body?.password || !tenantId) {
+  if (!userid || !body.password || !tenantId) {
     return NextResponse.json(
       { status: 'failed', statusMessage: 'User id, password and tenant are required' },
       { status: 400 }
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const response = await fetch(tokenUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Tenant-Id': tenantId },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestToken: { registeredAppName: tenantId, userid, password: body.password } }),
       cache: 'no-store',
     });
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     const jwtToken = await mintJwt(request, accessToken, tenantId);
     const userUniqueID = String(tokenResponse?.userUniqueID ?? '').trim() || undefined;
     const result = NextResponse.json(
-      { status: 'success', userUniqueID, userid, claims: decodeJwtClaims(jwtToken) },
+      { status: 'success', userUniqueID, claims: await verifiedJwtClaims(jwtToken) },
       { headers: { 'Cache-Control': 'no-store, private' } }
     );
     setTokenCookies(result, request, { accessToken, jwtToken });

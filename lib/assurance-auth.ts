@@ -13,7 +13,7 @@
 
 import { COOKIE_NAMES, forceLogout, getCookie, resolveTenantIdForHeader } from "@/lib/auth";
 import { getOriginalFetch } from "@/lib/authFetch";
-import { isTokenPlaceholder, viaTokenProxy } from "@/lib/kfProxy";
+import { isTokenPlaceholder, TOKEN_PLACEHOLDER, viaTokenProxy } from "@/lib/kfProxy";
 
 /** The signed-in user's access token when JS can read it, or null (an HttpOnly cookie: our proxies add it). */
 export function getAssuranceAccessToken(): string | null {
@@ -66,9 +66,11 @@ export async function assuranceFetch(input: string, init: RequestInit = {}): Pro
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   else {
+    // Direct service calls (kfmailserver, kfscheduler, ...) get the token from the cookie via the
+    // token proxy, which reads the access-token placeholder; anything else goes without Authorization.
+    headers.set("Authorization", `Bearer ${TOKEN_PLACEHOLDER.access}`);
+    const proxied = viaTokenProxy(input, { ...init, headers });
     headers.delete("Authorization");
-    // Direct service calls (kfmailserver, kfscheduler, ...) get the token from the cookie via the token proxy.
-    const proxied = viaTokenProxy(input, { ...init, headers }, "access");
     if (proxied) {
       input = proxied.url;
       init = proxied.init;

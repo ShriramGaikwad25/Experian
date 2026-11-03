@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProxyAccessToken } from "@/lib/serverAuth";
-import { isTokenPlaceholder, proxyAuthDiagnostics } from "@/lib/kfProxy";
+import { getAccessTokenFromRequest } from "@/lib/serverAuth";
+import { isTokenPlaceholder } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
 // Continuous Compliance Console (graph.keyforge.ai/console). The browser
@@ -29,12 +29,10 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   }
   // A token placeholder (lib/kfProxy.ts) is not a token: use the cookie instead.
   if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
-  let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
-    const found = getProxyAccessToken(request);
-    if (found) { headers.set("authorization", `Bearer ${found.token}`); authSource = `cookie:${found.cookie}`; }
+    const token = getAccessTokenFromRequest(request);
+    if (token) headers.set("authorization", `Bearer ${token}`);
   }
-  const diagnostics = proxyAuthDiagnostics(authSource, request.cookies.getAll().map((c) => c.name));
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
@@ -47,7 +45,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     });
     // Pass the body through as bytes (JSON, or a ZIP evidence pack) with the headers the console reads.
     const body = await upstream.arrayBuffer();
-    const responseHeaders = new Headers({ "Content-Type": upstream.headers.get("content-type") ?? "application/json", ...diagnostics });
+    const responseHeaders = new Headers({ "Content-Type": upstream.headers.get("content-type") ?? "application/json" });
     for (const name of ["content-disposition", "x-pack-id", "x-pack-hash"]) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);

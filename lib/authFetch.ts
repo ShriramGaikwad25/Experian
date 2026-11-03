@@ -1,7 +1,5 @@
-import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout, resolveTenantIdForHeader } from "@/lib/auth";
+import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout } from "@/lib/auth";
 import { isBackendUrl } from "@/lib/backendOrigin";
-import { withBasePath } from "@/lib/basePath";
-import { isAssuranceApiUrl } from "@/lib/assurance-api";
 import { routeTokenPlaceholder } from "@/lib/kfProxy";
 
 let fetchPatched = false;
@@ -10,58 +8,9 @@ let originalFetch: typeof window.fetch | null = null;
 /** True when the current request is our own retry after token refresh (avoids infinite loop) */
 const RETRY_HEADER = "X-Internal-Token-Retry";
 
-function requestUrl(input: RequestInfo | URL): string {
-  return typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
-}
-
 function isKeyforgeRequest(input: RequestInfo | URL): boolean {
-  const url = requestUrl(input);
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
   return typeof url === "string" && isBackendUrl(url);
-}
-
-/** Continuous Assurance service calls (Assurance Events pages) — they set their own headers; never touched here. */
-function isAssuranceRequest(input: RequestInfo | URL): boolean {
-  const url = requestUrl(input);
-  return typeof url === "string" && isAssuranceApiUrl(url);
-}
-
-/** Same-origin calls to our Next.js API routes (/kfidp/api/*), which proxy to KeyForge server-side. */
-function isOwnApiRequest(input: RequestInfo | URL): boolean {
-  const url = requestUrl(input);
-  if (typeof url !== "string" || isAssuranceApiUrl(url)) return false;
-  const apiPrefix = withBasePath("/api/");
-  if (url.startsWith(apiPrefix)) return true;
-  return typeof window !== "undefined" && url.startsWith(`${window.location.origin}${apiPrefix}`);
-}
-
-/**
- * KeyForge services expect X-Tenant-Id: the backend origin, any *.keyforge.ai service the
- * Assurance Events pages call directly (graph / preview), and our own API proxies.
- */
-function needsTenantHeader(input: RequestInfo | URL): boolean {
-  const url = requestUrl(input);
-  return isKeyforgeRequest(input) || (typeof url === "string" && url.includes("keyforge.ai")) || isOwnApiRequest(input);
-}
-
-/** Builds a Headers object from any RequestInit["headers"] shape. */
-function toHeaders(headers: HeadersInit | undefined): Headers {
-  if (headers instanceof Headers) return new Headers(headers);
-  if (Array.isArray(headers)) return new Headers(headers);
-  if (headers && typeof headers === "object") return new Headers(headers as Record<string, string>);
-  return new Headers();
-}
-
-/** Adds X-Tenant-Id (the signed-in tenant) to every KeyForge / own-API request that doesn't already set it. */
-function withTenantHeader(input: RequestInfo | URL, init: RequestInit | undefined): RequestInit | undefined {
-  if (!needsTenantHeader(input)) return init;
-  const tenantId = resolveTenantIdForHeader();
-  if (!tenantId) return init;
-
-  const headers = toHeaders(init?.headers);
-  if (!headers.has("X-Tenant-Id")) {
-    headers.set("X-Tenant-Id", tenantId);
-  }
-  return { ...init, headers };
 }
 
 function isTokenExpiredBody(data: unknown): boolean {
@@ -81,16 +30,12 @@ export function getOriginalFetch(): typeof window.fetch {
   if (typeof window === "undefined") {
     throw new Error("getOriginalFetch can only be called in browser environment");
   }
-  if (!originalFetch) {
-    originalFetch = window.fetch.bind(window);
-  }
+  if (!originalFetch) originalFetch = window.fetch.bind(window);
   const rawFetch = originalFetch;
-  // Still "original" w.r.t. the 401-retry/refresh logic below — but every caller of
-  // getOriginalFetch() deliberately bypasses that logic while still needing X-Tenant-Id,
-  // and a token placeholder still has to reach the token proxy.
+  // Bypasses the JWT patch below, but an access-token placeholder still has to reach the token proxy.
   return ((input: RequestInfo | URL, init?: RequestInit) => {
-    const [url, routed] = routeTokenPlaceholder(input, init, "access");
-    return rawFetch(url, withTenantHeader(url, routed));
+    const [url, routed] = routeTokenPlaceholder(input, init);
+    return rawFetch(url, routed);
   }) as typeof window.fetch;
 }
 
@@ -111,35 +56,34 @@ export function ensureAuthFetchPatched(): void {
     const isRetry = (init?.headers instanceof Headers && (init.headers as Headers).get(RETRY_HEADER) === "1") ||
       (typeof init?.headers === "object" && !Array.isArray(init?.headers) && (init.headers as Record<string, string>)[RETRY_HEADER] === "1");
 
-    if (isAssuranceRequest(input)) {
-      const [url, routed] = routeTokenPlaceholder(input, init, "access");
-      return originalFetch!(url, routed);
-    }
-
     try {
       const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
       // jwtToken is the placeholder in a signed-in session (tokens are HttpOnly): send() routes the
       // call through the token proxy, which swaps it for the token from the cookie.
       const send = (i: RequestInit | undefined) => {
-        const [url, routed] = routeTokenPlaceholder(input, i, "jwt");
-        return originalFetch!(url, withTenantHeader(url, routed));
+        const [url, routed] = routeTokenPlaceholder(input, i);
+        return originalFetch!(url, routed);
       };
 
       if (!jwtToken && !isRetry) {
         return send(init);
       }
 
-      const headers = toHeaders(init?.headers);
+      let headers: Headers;
+      if (init?.headers instanceof Headers) {
+        headers = new Headers(init.headers);
+      } else if (Array.isArray(init?.headers)) {
+        headers = new Headers(init.headers);
+      } else if (init?.headers && typeof init?.headers === "object") {
+        headers = new Headers(init.headers as Record<string, string>);
+      } else {
+        headers = new Headers();
+      }
       headers.delete(RETRY_HEADER);
 
       if (!headers.has("Authorization") && jwtToken) {
         headers.set("Authorization", `Bearer ${jwtToken}`);
-      }
-
-      if (needsTenantHeader(input) && !headers.has("X-Tenant-Id")) {
-        const tenantId = resolveTenantIdForHeader();
-        if (tenantId) headers.set("X-Tenant-Id", tenantId);
       }
 
       const nextInit: RequestInit = { ...init, headers };
@@ -168,26 +112,27 @@ export function ensureAuthFetchPatched(): void {
           return doRefreshAndRetry();
         }
 
-        const cloned = response.clone();
-        let text: string;
-        try {
-          text = await cloned.text();
-        } catch {
+        // Only a JSON body can carry "Token Expired"; files (e.g. .xlsx) must not be read as text,
+        // which would corrupt their bytes
+        const contentType = response.headers.get("Content-Type") || "";
+        if (contentType && !/json|text\/plain/i.test(contentType)) {
           return response;
         }
+        // Read a clone so the original body reaches the caller untouched
         try {
-          const data = JSON.parse(text) as unknown;
+          const data = JSON.parse(await response.clone().text()) as unknown;
           if (isTokenExpiredBody(data)) {
             return doRefreshAndRetry();
           }
         } catch {
           // not JSON or other parse error
         }
-        return new Response(text, { status: response.status, statusText: response.statusText, headers: response.headers });
+        return response;
       });
     } catch (error) {
       console.error("Error in auth fetch patch:", error);
-      return originalFetch!(input, init);
+      const [url, routed] = routeTokenPlaceholder(input, init);
+      return originalFetch!(url, routed);
     }
   }) as typeof window.fetch;
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProxyAccessToken } from "@/lib/serverAuth";
-import { isTokenPlaceholder, proxyAuthDiagnostics } from "@/lib/kfProxy";
+import { getAccessTokenFromRequest } from "@/lib/serverAuth";
+import { isTokenPlaceholder } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Assurance (compliance) service. The
 // browser calls /api/assurance/* on our own origin and this handler forwards
@@ -26,12 +26,10 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   // A token placeholder (lib/kfProxy.ts) is not a token: use the cookie instead.
   if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
   // After an external SSO sign-in the access token is an HttpOnly cookie the browser cannot read.
-  let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
-    const found = getProxyAccessToken(request);
-    if (found) { headers.set("authorization", `Bearer ${found.token}`); authSource = `cookie:${found.cookie}`; }
+    const token = getAccessTokenFromRequest(request);
+    if (token) headers.set("authorization", `Bearer ${token}`);
   }
-  const diagnostics = proxyAuthDiagnostics(authSource, request.cookies.getAll().map((c) => c.name));
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
@@ -46,7 +44,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const body = await upstream.text();
     return new NextResponse(body || null, {
       status: upstream.status,
-      headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json", ...diagnostics },
+      headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json" },
     });
   } catch (error) {
     console.error("Assurance proxy error:", error);

@@ -5,32 +5,30 @@
 // by KeyForge after an external SSO sign-in): the browser holds them but our JS
 // never sees them, so an XSS cannot steal them. Code that attaches
 // `Authorization` itself gets a placeholder from getCookie() instead of the
-// token; calls to KeyForge services are rerouted through /kfidp/api/kf/...
-// (app/api/kf), which swaps the placeholder for the token from the cookie on
-// the server and forwards to the original service.
+// token; calls carrying it to the KeyForge backend are rerouted through
+// /kfidp/api/kf/... (app/api/kf), which swaps the placeholder for the token
+// from the cookie on the server and forwards to the original service.
 // =====================================================================
 
-import { withBasePath } from "@/lib/basePath";
+import { BASE_PATH, withBasePath } from "@/lib/basePath";
 import { getBackendOrigin } from "@/lib/backendOrigin";
 
 /** Which cookie the proxy authorizes with: the master access token or the short-lived JWT. */
 export type KfProxyAuth = "access" | "jwt";
 
-export const KF_PROXY_PREFIX = withBasePath("/api/kf");
-/** Header naming the upstream origin (validated server-side against *.keyforge.ai). */
+export const KF_PROXY_PREFIX = "/api/kf";
+/** Header naming the upstream origin (validated server-side: the backend origin or *.keyforge.ai). */
 export const KF_UPSTREAM_HEADER = "X-KF-Upstream";
 /** Header naming the token the proxy should add (KfProxyAuth). */
 export const KF_AUTH_HEADER = "X-KF-Auth";
 
 /**
- * Diagnostic response headers for our proxies (no token values): where Authorization came from
- * ("browser", "cookie:<name>" or "none") and which cookie names reached the server.
+ * Upstream paths that mint or hand out tokens. Never reachable through the proxy: it would sign the
+ * request with the session's token and return a fresh token to page code, defeating HttpOnly.
  */
-export function proxyAuthDiagnostics(authSource: string, cookieNames: string[]): Record<string, string> {
-  return { "X-KF-Proxy-Auth": authSource, "X-KF-Proxy-Cookies": cookieNames.join(",") || "(none)" };
-}
+export const TOKEN_ISSUING_PATH = /(generateJWTToken|requestJWTToken|requestToken|TokenProvider|oauth\/token)/i;
 
-/** True for https://keyforge.ai and https://*.keyforge.ai — the only origins the proxy forwards to. */
+/** True for https://keyforge.ai and https://*.keyforge.ai. */
 export function isKeyforgeOrigin(origin: string): boolean {
   try {
     const u = new URL(origin);
@@ -60,7 +58,7 @@ function placeholderAuth(headers: Headers): KfProxyAuth | null {
 
 let httpOnlySession = false;
 
-/** Set by AuthContext: the session is valid and its tokens are HttpOnly cookies (JS cannot read them). */
+/** Set on sign-in / session restore: the session is valid and its tokens are HttpOnly cookies. */
 export function setHttpOnlySession(value: boolean): void {
   httpOnlySession = value;
 }
@@ -70,33 +68,34 @@ export function usesHttpOnlySession(): boolean {
 }
 
 /**
- * For an HttpOnly session, rewrites a direct KeyForge service call to go through the token proxy,
- * which adds the token named by the request's placeholder (or `auth` when it has none).
- * Returns null when the call should go out unchanged (no session, not a KeyForge service,
- * already one of our own /kfidp routes, or it carries a real Authorization header).
+ * Rewrites a KeyForge backend call carrying a token placeholder to go through the token proxy,
+ * which adds the token the placeholder names. Returns null when the call should not be proxied
+ * (no placeholder, one of our own /kfidp routes, not a KeyForge service, or a token endpoint).
  */
-export function viaTokenProxy(url: string, init: RequestInit | undefined, auth: KfProxyAuth): { url: string; init: RequestInit } | null {
-  if (!httpOnlySession || typeof window === "undefined") return null;
+export function viaTokenProxy(url: string, init: RequestInit | undefined): { url: string; init: RequestInit } | null {
+  if (typeof window === "undefined" || !init?.headers) return null;
+  const headers = new Headers(init.headers);
+  const placeholder = placeholderAuth(headers);
+  if (!placeholder) return null;
+
   let target: URL;
   try {
     target = new URL(url, window.location.href);
   } catch {
     return null;
   }
-  const basePath = withBasePath("/");
-  const ownRoute = target.origin === window.location.origin && (target.pathname === basePath.replace(/\/$/, "") || target.pathname.startsWith(basePath));
+  // The UI and the backend may share an origin (self-hosted): only /kfidp/* is ours.
+  const ownRoute =
+    target.origin === window.location.origin &&
+    (target.pathname === BASE_PATH || target.pathname.startsWith(`${BASE_PATH}/`));
   if (ownRoute) return null;
-  const backend = target.origin === getBackendOrigin() || target.origin === window.location.origin;
-  if (!backend && !isKeyforgeOrigin(target.origin)) return null;
+  if (target.origin !== getBackendOrigin() && !isKeyforgeOrigin(target.origin)) return null;
+  if (TOKEN_ISSUING_PATH.test(target.pathname)) return null;
 
-  const headers = new Headers(init?.headers);
-  const placeholder = placeholderAuth(headers);
-  if (!placeholder && headers.get("Authorization")?.trim()) return null;
   headers.delete("Authorization");
   headers.set(KF_UPSTREAM_HEADER, target.origin);
-  if (placeholder) headers.set(KF_AUTH_HEADER, placeholder);
-  else if (!headers.has(KF_AUTH_HEADER)) headers.set(KF_AUTH_HEADER, auth);
-  return { url: `${KF_PROXY_PREFIX}${target.pathname}${target.search}`, init: { ...init, headers } };
+  headers.set(KF_AUTH_HEADER, placeholder);
+  return { url: `${withBasePath(KF_PROXY_PREFIX)}${target.pathname}${target.search}`, init: { ...init, headers } };
 }
 
 /** Drops an `Authorization: Bearer <placeholder>` header (our own routes read the token from the cookie). */
@@ -111,11 +110,10 @@ export function withoutTokenPlaceholder(init: RequestInit | undefined): RequestI
 /** Routes a request carrying a token placeholder: KeyForge services via the token proxy, anything else without it. */
 export function routeTokenPlaceholder(
   input: RequestInfo | URL,
-  init: RequestInit | undefined,
-  auth: KfProxyAuth = "jwt"
+  init: RequestInit | undefined
 ): [RequestInfo | URL, RequestInit | undefined] {
   if (typeof input === "string" || input instanceof URL) {
-    const proxied = viaTokenProxy(typeof input === "string" ? input : input.href, init, auth);
+    const proxied = viaTokenProxy(typeof input === "string" ? input : input.href, init);
     if (proxied) return [proxied.url, proxied.init];
   }
   return [input, withoutTokenPlaceholder(init)];

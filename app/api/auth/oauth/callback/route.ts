@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRegisteredAppFromCookies } from '@/lib/tenant-server';
-import { decodeJwtClaims, getBackendOriginFromRequest } from '@/lib/serverAuth';
+import { getBackendOriginFromRequest, verifiedJwtClaims } from '@/lib/serverAuth';
 import { mintJwt, setTokenCookies } from '@/lib/authSession';
 
 const authBaseUrl = (request: NextRequest) =>
@@ -58,18 +58,11 @@ export async function GET(request: NextRequest) {
     const accessToken = String(tokenResponse?.accessToken ?? data?.accessToken ?? '').trim();
     const failed = data?.status === 'failed' || data?.status === 'error' || data?.STATUS === 'FAILED';
     if (!response.ok || !data || failed || !accessToken) {
-      // Pass back only the message for the page to show (never a token an odd answer might carry).
-      const status = response.ok ? 502 : response.status;
-      if (!data) {
-        return new NextResponse(text, { status, headers: { 'Content-Type': 'application/json' } });
-      }
-      return NextResponse.json(
-        {
-          status: 'failed',
-          statusMessage: String(data.statusMessage ?? data.STATUSMESSAGE ?? `OAuth callback failed (${response.status})`),
-        },
-        { status }
-      );
+      // Error answers carry no token; pass them back for the page to show.
+      return new NextResponse(text, {
+        status: response.ok && !accessToken ? 502 : response.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Store the tokens as HttpOnly cookies; the page gets only the user's ids and claims.
@@ -77,7 +70,7 @@ export async function GET(request: NextRequest) {
     const userUniqueID = String(tokenResponse?.userUniqueID ?? data.userUniqueID ?? '').trim() || undefined;
     const userid = String(tokenResponse?.userid ?? data.userid ?? userUniqueID ?? '').trim() || undefined;
     const result = NextResponse.json(
-      { status: 'success', userUniqueID, userid, claims: decodeJwtClaims(jwtToken) },
+      { status: 'success', userUniqueID, userid, claims: await verifiedJwtClaims(jwtToken) },
       { headers: { 'Cache-Control': 'no-store, private' } }
     );
     setTokenCookies(result, request, { accessToken, jwtToken });

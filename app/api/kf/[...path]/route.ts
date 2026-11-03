@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { COOKIE_NAMES } from "@/lib/auth";
-import { getBackendOriginFromRequest, getPageOriginFromRequest, getProxyAccessToken } from "@/lib/serverAuth";
-import { isKeyforgeOrigin, isTokenPlaceholder, KF_AUTH_HEADER, KF_UPSTREAM_HEADER, proxyAuthDiagnostics } from "@/lib/kfProxy";
+import { getAccessTokenFromRequest, getBackendOriginFromRequest, getJwtTokenFromRequest, getPageOriginFromRequest } from "@/lib/serverAuth";
+import { isKeyforgeOrigin, KF_AUTH_HEADER, KF_UPSTREAM_HEADER, TOKEN_ISSUING_PATH } from "@/lib/kfProxy";
 
-// Token proxy for sessions whose tokens are HttpOnly cookies (see lib/kfProxy.ts).
-// The browser calls /kfidp/api/kf/<service path> with X-KF-Upstream (the service's
-// origin) and X-KF-Auth (access | jwt); this adds Authorization from that cookie
-// and forwards to <origin>/<service path>. Only the backend origin and
-// https://*.keyforge.ai are allowed upstreams, so this is not an open proxy.
+// Token proxy: session tokens are HttpOnly cookies (see lib/kfProxy.ts).
+// The browser calls /kfidp/api/kf/<service path> with X-KF-Upstream (the
+// service's origin) and X-KF-Auth (access | jwt); this adds Authorization from
+// that cookie and forwards to <origin>/<service path>. Only the backend origin
+// and https://*.keyforge.ai are allowed upstreams, so this is not an open proxy.
 
 /**
  * Request headers never passed to the upstream service: the browser's cookies (the token is added
@@ -15,18 +14,12 @@ import { isKeyforgeOrigin, isTokenPlaceholder, KF_AUTH_HEADER, KF_UPSTREAM_HEADE
  * Everything else (X-Tenant-Id, loginremote_user, ...) goes through as the caller set it.
  */
 const DROPPED_HEADERS = new Set([
-  "cookie", "host", "connection", "keep-alive", "transfer-encoding", "content-length", "accept-encoding",
-  "origin", "referer", "x-internal-token-retry",
+  "authorization", "cookie", "host", "connection", "keep-alive", "transfer-encoding", "content-length",
+  "accept-encoding", "origin", "referer", "x-internal-token-retry",
 ]);
-const DROPPED_HEADER_PREFIXES = ["x-kf-", "sec-", "x-forwarded-", "x-vercel-", "x-real-ip"];
-
-/**
- * Upstream paths that mint or hand out tokens. Never reachable through the proxy: it would sign the
- * request with the session's token and return a fresh token to page code, defeating HttpOnly.
- */
-const TOKEN_ISSUING_PATH = /(generateJWTToken|requestJWTToken|requestToken|TokenProvider|oauth\/token)/i;
+const DROPPED_HEADER_PREFIXES = ["x-kf-", "sec-", "x-forwarded-", "x-real-ip"];
 /** Response headers passed back to the browser. */
-const RETURNED_HEADERS = ["content-type", "content-disposition", "x-pack-id", "x-pack-hash"];
+const RETURNED_HEADERS = ["content-type", "content-disposition"];
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: pathSegments } = await params;
@@ -51,16 +44,11 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     if (DROPPED_HEADERS.has(n) || DROPPED_HEADER_PREFIXES.some((p) => n.startsWith(p))) return;
     headers.set(name, value);
   });
-  if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
-  let authSource = headers.has("authorization") ? "browser" : "none";
-  if (!headers.has("authorization")) {
-    const jwt = request.cookies.get(COOKIE_NAMES.JWT_TOKEN)?.value;
-    const found = request.headers.get(KF_AUTH_HEADER)?.toLowerCase() === "access"
-      ? getProxyAccessToken(request)
-      : jwt ? { token: jwt, cookie: COOKIE_NAMES.JWT_TOKEN } : null;
-    if (found) { headers.set("authorization", `Bearer ${found.token}`); authSource = `cookie:${found.cookie}`; }
-  }
-  const diagnostics = proxyAuthDiagnostics(authSource, request.cookies.getAll().map((c) => c.name));
+  // The caller's Authorization is only ever a placeholder: the token always comes from the cookie.
+  const token = request.headers.get(KF_AUTH_HEADER)?.toLowerCase() === "access"
+    ? getAccessTokenFromRequest(request)
+    : getJwtTokenFromRequest(request);
+  if (token) headers.set("authorization", `Bearer ${token}`);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
@@ -72,7 +60,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       cache: "no-store",
     });
     const body = await upstream.arrayBuffer();
-    const responseHeaders = new Headers(diagnostics);
+    const responseHeaders = new Headers({ "Cache-Control": "no-store, private" });
     for (const name of RETURNED_HEADERS) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);

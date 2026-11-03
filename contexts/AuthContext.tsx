@@ -18,6 +18,8 @@ import {
   restoreSessionFromCookies,
   getPersistedAuthType,
   secureReadableTokenCookies,
+  setSessionClaims,
+  getSessionClaims,
   fetchServerSession,
   shouldRedirectToOAuthProvider,
   markOAuthRedirectAttempt,
@@ -25,8 +27,6 @@ import {
   clearLastAuthTypeOnLocalLogin,
   performUserLogout,
   syncAuthTypeToSession,
-  clearLogoutRedirectFlag,
-  setSessionClaims,
 } from '@/lib/auth';
 import {
   getActiveTenantId,
@@ -38,6 +38,7 @@ import {
 } from '@/lib/tenant';
 import { ensureAuthFetchPatched } from '@/lib/authFetch';
 import { setHttpOnlySession } from '@/lib/kfProxy';
+import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -60,10 +61,9 @@ function applySessionToState(
   serverSession: Awaited<ReturnType<typeof fetchServerSession>>
 ) {
   // The session's tokens are HttpOnly cookies: calls go via the token proxy (lib/kfProxy.ts),
-  // and the JWT's claims (roles, reviewer id) come from the server. Both are set before
-  // isAuthenticated, so pages and role checks never see a session without them.
+  // and the JWT's claims (user id, roles, tenant) come from the server.
   setHttpOnlySession(true);
-  setSessionClaims(serverSession.claims ?? null);
+  setSessionClaims(serverSession.claims ?? getSessionClaims());
   const session = restoreSessionFromCookies();
   const email = String(
     serverSession.user?.email ??
@@ -82,9 +82,6 @@ function applySessionToState(
   });
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT);
-  // A previous SSO logout in this tab leaves this set; with a live session again it is stale,
-  // and AuthWrapper would keep sending every page to /logged-out.
-  sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -113,9 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (pathTenant) {
           setActiveTenantId(pathTenant);
         }
-        // Opening the tenant sign-in URL is a new sign-in: drop the flag an earlier SSO logout left.
-        if (isTenantAuthPath(path)) clearLogoutRedirectFlag();
-        let tenant = getActiveTenantId();
+        const tenant = getActiveTenantId();
         setActiveTenantIdState(tenant);
 
         if (isLoggedOutPath(path)) {
@@ -123,18 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(false);
           setUser(null);
           return;
-        }
-
-        // After an external (e.g. Oracle) SSO sign-in the tenant is only in HttpOnly cookies
-        // (tenantId / REGISTERED_APPNAME) that JS cannot read: take it from the server session.
-        if (!tenant) {
-          const session = await fetchServerSession();
-          const fromCookies = session.authenticated ? session.user?.tenantId?.trim() : '';
-          if (fromCookies) {
-            setActiveTenantId(fromCookies);
-            tenant = fromCookies;
-            setActiveTenantIdState(tenant);
-          }
         }
 
         if (!tenant) {
@@ -164,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setAuthType('OAUTH');
             syncAuthTypeToSession('OAUTH', 'IDCS');
             applySessionToState(setIsAuthenticated, setUser, afterSession);
-            window.location.replace(withBasePath('/'));
+            window.location.replace(withBasePath('/dashboard'));
             return;
           } catch (oauthError) {
             console.error('AuthContext: OAuth callback failed:', oauthError);
@@ -204,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           syncAuthTypeToSession(resolvedAuthType);
           applySessionToState(setIsAuthenticated, setUser, serverSession);
           if (oauthCallback || isTenantAuthPath(path) || path.startsWith('/oauth/callback')) {
-            window.location.replace(withBasePath('/'));
+            window.location.replace(withBasePath('/dashboard'));
           }
           return;
         }
